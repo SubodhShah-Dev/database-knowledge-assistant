@@ -3,13 +3,13 @@ import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { decryptSecret, encryptSecret } from '../services/connectionCrypto';
 import { getSchemaSnapshot, invalidateSchemaCache } from '../services/introspection';
+import { toTargetConfig, type OwnedConnection } from '../services/connectionAccess';
 import {
   getPool,
   invalidatePools,
   safeConnectionError,
   testConnection,
-  type SslMode,
-  type TargetConfig
+  type SslMode
 } from '../services/connectionPool';
 
 export const connectionsRouter = Router();
@@ -52,16 +52,6 @@ function parseInput(body: any, existingPassword?: string): ConnectionInput | { e
   return { name, host, port, database, username, password, sslMode };
 }
 
-function toTargetConfig(row: any): TargetConfig {
-  return {
-    host: row.host,
-    port: row.port,
-    database: row.database_name,
-    user: row.username,
-    password: decryptSecret(row.password_encrypted),
-    sslMode: row.ssl_mode
-  };
-}
 
 connectionsRouter.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -125,7 +115,7 @@ connectionsRouter.get('/:id/schema', requireAuth, async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Connection not found.' });
 
-    const config = toTargetConfig(rows[0]);
+    const config = toTargetConfig(rows[0] as OwnedConnection);
     const targetPool = getPool(rows[0], config);
     const refresh = req.query.refresh === '1' || req.query.refresh === 'true';
     try {
@@ -250,10 +240,9 @@ connectionsRouter.post('/:id/test', requireAuth, async (req, res, next) => {
       [req.params.id, req.user!.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Connection not found.' });
-    res.json(await testConnection(toTargetConfig(rows[0])));
+    res.json(await testConnection(toTargetConfig(rows[0] as OwnedConnection)));
   } catch (error) {
     next(error);
   }
 });
 
-export { toTargetConfig };
