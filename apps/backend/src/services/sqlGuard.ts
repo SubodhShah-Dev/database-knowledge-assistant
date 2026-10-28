@@ -127,3 +127,17 @@ export function validateSql(sql: string, allowed: TableRef[]): string {
 
   return cleaned;
 }
+
+export function referencedTables(sql: string): TableRef[] {
+  const cleaned = sql.trim().replace(/;+\s*$/, '');
+  const statements = parse(cleaned) as any[];
+  if (statements.length !== 1) return [];
+  const refs = collectTableRefs(statements[0], collectCteAliases(statements[0]));
+  const seen = new Set<string>();
+  return refs.filter(ref => {
+    const key = `${ref.schema}.${ref.table}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

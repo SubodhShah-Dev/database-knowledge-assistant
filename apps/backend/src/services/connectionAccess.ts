@@ -39,6 +39,11 @@ export function toTargetConfig(row: OwnedConnection): TargetConfig {
   };
 }
 
+export function getTargetPool(connection: OwnedConnection) {
+  const config = toTargetConfig(connection);
+  return getPool(connection, config);
+}
+
 export async function getConnectionSchema(
   connection: OwnedConnection,
   refresh = false
