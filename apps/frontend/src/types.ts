@@ -32,6 +32,8 @@ export type ConnectionInput = {
   sslMode: string;
 };
 
+export type ConnectionUpdateInput = Omit<ConnectionInput, 'password'> & { password?: string };
+
 export type ConnectionTest =
   | { ok: true; serverVersion: string; sessionReadOnly: boolean; roleIsSuperuser: boolean; warning: string | null }
   | { ok: false; error: string };

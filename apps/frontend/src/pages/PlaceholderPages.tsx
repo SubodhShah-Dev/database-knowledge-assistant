@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { IconChat, IconDatabase, IconPlus } from '../components/icons';
+import { IconChat } from '../components/icons';
 
 function Placeholder({
   icon,
@@ -24,28 +24,6 @@ function Placeholder({
         <p>This workspace is being assembled. The API and safety layer are ready.</p>
       </div>
     </section>
-  );
-}
-
-export function NewSessionPage() {
-  return (
-    <Placeholder
-      icon={<IconPlus size={24} />}
-      eyebrow="Start a session"
-      title="New session"
-      body="Pick a database connection, review the schema, and choose the tables in scope."
-    />
-  );
-}
-
-export function ConnectionsPage() {
-  return (
-    <Placeholder
-      icon={<IconDatabase size={24} />}
-      eyebrow="Database connections"
-      title="Connections"
-      body="Save encrypted PostgreSQL connections and test them before starting a session."
-    />
   );
 }
 
