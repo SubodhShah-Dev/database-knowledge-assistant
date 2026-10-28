@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { decryptSecret, encryptSecret } from '../services/connectionCrypto';
+import { getSchemaSnapshot, invalidateSchemaCache } from '../services/introspection';
 import {
+  getPool,
   invalidatePools,
+  safeConnectionError,
   testConnection,
   type SslMode,
   type TargetConfig
@@ -114,6 +117,31 @@ connectionsRouter.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
+connectionsRouter.get('/:id/schema', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM database_connections WHERE id = $1 AND owner_id = $2',
+      [req.params.id, req.user!.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Connection not found.' });
+
+    const config = toTargetConfig(rows[0]);
+    const targetPool = getPool(rows[0], config);
+    const refresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    try {
+      const snapshot = await getSchemaSnapshot(targetPool, rows[0].id, config, refresh);
+      res.json({
+        connection: { id: rows[0].id, name: rows[0].name, database: rows[0].database_name },
+        ...snapshot
+      });
+    } catch (error) {
+      res.status(502).json({ error: safeConnectionError(error) });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 connectionsRouter.get('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -159,6 +187,7 @@ connectionsRouter.patch('/:id', requireAuth, async (req, res, next) => {
       ]
     );
     await invalidatePools(String(req.params.id));
+    invalidateSchemaCache(String(req.params.id));
     res.json(rows[0]);
   } catch (error: any) {
     if (error.code === '23505') {
@@ -204,6 +233,7 @@ connectionsRouter.delete('/:id', requireAuth, async (req, res, next) => {
     ]);
     await client.query('COMMIT');
     await invalidatePools(String(req.params.id));
+    invalidateSchemaCache(String(req.params.id));
     res.json({ ok: true });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
