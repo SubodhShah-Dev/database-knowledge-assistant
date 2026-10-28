@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.routes';
 import { modelsRouter } from './routes/models.routes';
 import { connectionsRouter } from './routes/connections.routes';
 import { conversationsRouter } from './routes/conversations.routes';
+import { questionsRouter } from './routes/questions.routes';
 import { LlmUnavailableError } from './services/llm';
 
 export const app = express();
@@ -24,6 +25,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/models', modelsRouter);
 app.use('/api/connections', connectionsRouter);
 app.use('/api/conversations', conversationsRouter);
+app.use('/api/questions', questionsRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
