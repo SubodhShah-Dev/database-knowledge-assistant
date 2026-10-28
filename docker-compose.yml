@@ -1,0 +1,37 @@
+services:
+  app-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: database_knowledge_assistant
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: local_dev_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - app_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d database_knowledge_assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  demo-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: demo_analytics
+      POSTGRES_USER: demo_admin
+      POSTGRES_PASSWORD: demo_admin_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - demo_pgdata:/var/lib/postgresql/data
+      - ./apps/backend/demo/target-schema.sql:/docker-entrypoint-initdb.d/01-target.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo_admin -d demo_analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  app_pgdata:
+  demo_pgdata:
