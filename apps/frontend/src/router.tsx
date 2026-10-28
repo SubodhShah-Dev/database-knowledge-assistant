@@ -2,7 +2,9 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import AppShell from './components/AppShell';
 import LoginPage from './pages/LoginPage';
-import { ChatPage, ConnectionsPage, NewSessionPage } from './pages/PlaceholderPages';
+import NewSessionPage from './pages/NewSessionPage';
+import ConnectionsPage from './pages/ConnectionsPage';
+import { ChatPage } from './pages/PlaceholderPages';
 
 function RequireAuth() {
   const { token } = useAuth();

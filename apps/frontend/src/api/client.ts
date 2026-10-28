@@ -3,6 +3,7 @@ import type {
   Connection,
   ConnectionInput,
   ConnectionTest,
+  ConnectionUpdateInput,
   ConversationDetail,
   ConversationSummary,
   DonePayload,
@@ -113,7 +114,7 @@ export function createConnection(input: ConnectionInput): Promise<Connection> {
   });
 }
 
-export function updateConnection(id: string, input: ConnectionInput): Promise<Connection> {
+export function updateConnection(id: string, input: ConnectionUpdateInput): Promise<Connection> {
   return apiFetch<Connection>(`/api/connections/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(input)
