@@ -44,6 +44,7 @@ test('signup, connect, ask with evidence, edit scope, and sign out', async ({ pa
   await expect(page.getByText('There are 8 orders in the demo database.')).toBeVisible({
     timeout: 15_000
   });
+  await expect(question).toBeEnabled();
 
   const dataTurn = page.locator('.chat-turn').last();
   await expect(dataTurn.locator('.sql-block')).toContainText(
@@ -57,6 +58,7 @@ test('signup, connect, ask with evidence, edit scope, and sign out', async ({ pa
   await expect(page.getByText('The orders table has 5 columns')).toBeVisible({
     timeout: 15_000
   });
+  await expect(question).toBeEnabled();
 
   const schemaTurn = page.locator('.chat-turn').last();
   await expect(schemaTurn.locator('.schema-evidence')).toContainText('customer_id');
@@ -93,6 +95,7 @@ test('signup, connect, ask with evidence, edit scope, and sign out', async ({ pa
   await expect(page.getByText('There are 8 orders in the demo database.').last()).toBeVisible({
     timeout: 15_000
   });
+  await expect(question).toBeEnabled();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
