@@ -35,6 +35,16 @@ export function IconChat(props: IconProps) {
   );
 }
 
+export function IconHistory(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 12a9 9 0 1 0 2.6-6.4" />
+      <path d="M3 4v5h5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  );
+}
+
 export function IconPlus(props: IconProps) {
   return (
     <svg {...base(props)}>

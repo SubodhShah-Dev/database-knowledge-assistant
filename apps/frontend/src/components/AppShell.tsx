@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import SessionsDrawer from './SessionsDrawer';
 import {
   IconChat,
   IconClose,
   IconDatabase,
+  IconHistory,
   IconLogout,
   IconMenu,
   IconMoon,
@@ -24,6 +26,7 @@ export default function AppShell() {
   const location = useLocation();
   const [theme, setTheme] = useState<Theme>(() => currentTheme());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -32,9 +35,20 @@ export default function AppShell() {
 
   useEffect(() => {
     setMenuOpen(false);
+    setHistoryOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 761px)');
+    function onChange() {
+      if (media.matches) setMenuOpen(false);
+    }
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+
   const isChat = location.pathname.startsWith('/c/');
+  const currentSessionId = location.pathname.match(/^\/c\/([^/]+)$/)?.[1];
 
   function handleLogout() {
     logout();
@@ -61,6 +75,9 @@ export default function AppShell() {
           <NavLink to="/connections" className="nav-link">
             <IconDatabase size={16} /> Connections
           </NavLink>
+          <NavLink to="/sessions" className="nav-link">
+            <IconHistory size={16} /> History
+          </NavLink>
           {isChat && (
             <NavLink to={location.pathname} className="nav-link nav-link-active">
               <IconChat size={16} /> Session
@@ -75,6 +92,18 @@ export default function AppShell() {
         </nav>
 
         <div className="header-actions">
+          <button
+            className="btn btn-ghost btn-icon"
+            aria-label="Session history"
+            title="Session history"
+            aria-expanded={historyOpen}
+            onClick={() => {
+              setHistoryOpen(true);
+              setMenuOpen(false);
+            }}
+          >
+            <IconHistory size={18} />
+          </button>
           <button
             className="btn btn-ghost btn-icon"
             aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
@@ -98,7 +127,10 @@ export default function AppShell() {
             className="btn btn-ghost btn-icon menu-toggle"
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(open => !open)}
+            onClick={() => {
+              setHistoryOpen(false);
+              setMenuOpen(open => !open);
+            }}
           >
             {menuOpen ? <IconClose size={19} /> : <IconMenu size={19} />}
           </button>
@@ -108,6 +140,13 @@ export default function AppShell() {
       <main className="app-main">
         <Outlet />
       </main>
+
+      {historyOpen && (
+        <SessionsDrawer
+          currentId={currentSessionId}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 }

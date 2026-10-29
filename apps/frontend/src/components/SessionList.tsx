@@ -1,0 +1,129 @@
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import type { ConversationSummary } from '../types';
+import { timeAgo } from '../format';
+import {
+  IconAlert,
+  IconArrowRight,
+  IconChat,
+  IconRefresh,
+  IconTrash
+} from './icons';
+
+type Props = {
+  sessions: ConversationSummary[];
+  loading: boolean;
+  error: string;
+  actionError: string;
+  deletingId: string | null;
+  currentId?: string;
+  compact?: boolean;
+  onDelete: (session: ConversationSummary) => void;
+  onRetry: () => void;
+  onNavigate?: () => void;
+  empty: ReactNode;
+};
+
+export default function SessionList({
+  sessions,
+  loading,
+  error,
+  actionError,
+  deletingId,
+  currentId,
+  compact = false,
+  onDelete,
+  onRetry,
+  onNavigate,
+  empty
+}: Props) {
+  if (loading) {
+    return (
+      <div className="session-list" aria-label="Loading sessions">
+        {[0, 1, 2].map(index => (
+          <div className="session-row session-row-skeleton" key={index}>
+            <span className="skeleton skeleton-line wide" />
+            <span className="skeleton skeleton-line short" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="alert alert-danger">
+        <IconAlert size={17} />
+        <span>{error}</span>
+        <button className="btn btn-ghost btn-sm" onClick={onRetry}>
+          <IconRefresh size={15} /> Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {actionError && (
+        <div className="alert alert-danger session-alert" role="alert">
+          <IconAlert size={17} />
+          <span>{actionError}</span>
+        </div>
+      )}
+
+      {sessions.length === 0 ? (
+        empty
+      ) : (
+        <ul className={`session-list${compact ? ' compact' : ''}`}>
+          {sessions.map(session => {
+            const isCurrent = session.id === currentId;
+            const deleting = deletingId === session.id;
+            return (
+              <li className={`session-row${isCurrent ? ' current' : ''}`} key={session.id}>
+                <Link
+                  to={`/c/${session.id}`}
+                  className="session-row-main"
+                  aria-current={isCurrent ? 'page' : undefined}
+                  onClick={onNavigate}
+                >
+                  <span className="session-row-icon">
+                    <IconChat size={17} />
+                  </span>
+                  <span className="session-row-body">
+                    <span className="session-row-title" title={session.title}>
+                      {session.title}
+                    </span>
+                    <span className="session-row-meta">
+                      {session.connection.name} · {session.connection.database} ·{' '}
+                      {session.selectedTables.length}{' '}
+                      {session.selectedTables.length === 1 ? 'table' : 'tables'}
+                    </span>
+                  </span>
+                  <span className="session-row-time">{timeAgo(session.updatedAt)}</span>
+                  <IconArrowRight size={16} />
+                </Link>
+                <button
+                  className="btn btn-ghost btn-icon session-delete"
+                  aria-label={`Delete ${session.title}`}
+                  title="Delete session"
+                  disabled={deletingId !== null}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete "${session.title}"? This permanently removes the session and its question history.`
+                      )
+                    ) {
+                      onDelete(session);
+                    }
+                  }}
+                >
+                  {deleting ? <span className="spinner spinner-sm" /> : <IconTrash size={16} />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+}
