@@ -6,9 +6,15 @@
     "apps/backend"
   ],
   "scripts": {
+    "setup": "npm run docker:up && npm run db:setup && npm run dev",
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run dev -w apps/backend",
     "dev:web": "npm run dev -w apps/frontend",
+    "docker:up": "docker compose up -d --wait",
+    "docker:down": "docker compose down",
+    "docker:ps": "docker compose ps",
+    "docker:logs": "docker compose logs -f",
+    "db:setup": "docker compose exec -T app-postgres psql -U app_user -d database_knowledge_assistant < apps/backend/schema.sql && npm run seed",
     "test": "npm run test -w apps/backend",
     "test:e2e": "npm run test:e2e -w apps/frontend",
     "typecheck": "npm run typecheck -w apps/backend && npm run typecheck -w apps/frontend",
