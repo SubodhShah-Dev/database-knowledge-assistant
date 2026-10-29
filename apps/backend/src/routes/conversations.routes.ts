@@ -143,7 +143,7 @@ conversationsRouter.get('/:id', requireAuth, async (req, res, next) => {
     if (!connection) return res.status(404).json({ error: 'Connection not found.' });
 
     const turns = await pool.query(
-      `SELECT id, question, answer, evidence, model, created_at
+      `SELECT id, question, answer, evidence, model, answer_mode, created_at
        FROM qa_history
        WHERE conversation_id = $1 AND user_id = $2
        ORDER BY id ASC`,
@@ -159,6 +159,7 @@ conversationsRouter.get('/:id', requireAuth, async (req, res, next) => {
         answer: turn.answer,
         evidence: turn.evidence,
         model: turn.model,
+        mode: turn.answer_mode,
         createdAt: turn.created_at
       }))
     });
