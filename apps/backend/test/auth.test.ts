@@ -45,6 +45,15 @@ describe('auth', () => {
     expect(response.body.error).toBe('Invalid email or password.');
   });
 
+  test('returns a safe error for malformed JSON', async () => {
+    const response = await request(app)
+      .post('/api/auth/login')
+      .set('Content-Type', 'application/json')
+      .send('{"email":');
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid JSON body.');
+  });
+
   test('rejects missing and invalid tokens', async () => {
     const probe = express();
     probe.get('/probe', requireAuth, (req, res) => res.json({ userId: req.user?.id }));

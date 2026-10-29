@@ -27,10 +27,16 @@ app.use('/api/connections', connectionsRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/questions', questionsRouter);
 
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(err);
   if (err instanceof LlmUnavailableError) {
-    return res.status(503).json({ error: 'The language model is unavailable right now. Please try again in a moment.' });
+    return res
+      .status(503)
+      .json({ error: 'The language model is unavailable right now. Please try again in a moment.' });
   }
-  res.status(500).json({ error: err.message || 'Unexpected server error.' });
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Invalid JSON body.' });
+  }
+  console.error(err);
+  res.status(500).json({ error: 'Unexpected server error.' });
 });
