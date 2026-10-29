@@ -119,8 +119,8 @@ describe('conversations', () => {
     expect(patched.body.modelId).toBe(model.rows[0].id);
 
     await pool.query(
-      `INSERT INTO qa_history(user_id, conversation_id, question, answer, evidence)
-       VALUES ($1, $2, 'How many orders?', '8 orders.', $3::jsonb)`,
+      `INSERT INTO qa_history(user_id, conversation_id, question, answer, evidence, answer_mode)
+       VALUES ($1, $2, 'How many orders?', '8 orders.', $3::jsonb, 'data')`,
       [userId, created.body.id, JSON.stringify({ kind: 'sql', rowCount: 1 })]
     );
 
@@ -139,6 +139,7 @@ describe('conversations', () => {
     });
     expect(detail.body.turns).toHaveLength(1);
     expect(detail.body.turns[0].evidence.kind).toBe('sql');
+    expect(detail.body.turns[0].mode).toBe('data');
   });
 
   test('rejects changing the connection', async () => {

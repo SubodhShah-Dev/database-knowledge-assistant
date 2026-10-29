@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import request from 'supertest';
 import { app } from '../src/app';
 import { pool } from '../src/db';
@@ -188,5 +191,65 @@ describe('connections', () => {
       conversation.rows[0].id
     ]);
     expect(sessions.rows).toHaveLength(0);
+  });
+
+  test('allows changing database type when the connection has no saved sessions', async () => {
+    const previousAllowedDir = process.env.SQLITE_ALLOWED_DIR;
+    const directory = await mkdtemp(path.join(tmpdir(), 'database-assistant-connection-'));
+    const filename = path.join(directory, 'fixture.db');
+    await writeFile(filename, '');
+    process.env.SQLITE_ALLOWED_DIR = directory;
+
+    try {
+      const { token } = await signup('change-engine');
+      const created = await request(app)
+        .post('/api/connections')
+        .set('Authorization', `Bearer ${token}`)
+        .send(demo);
+
+      const updated = await request(app)
+        .patch(`/api/connections/${created.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          engine: 'sqlite',
+          name: demo.name,
+          database: 'fixture',
+          sqlitePath: filename
+        });
+
+      expect(updated.status).toBe(200);
+      expect(updated.body.engine).toBe('sqlite');
+      expect(updated.body.sqlite_path).toBe(filename);
+    } finally {
+      if (previousAllowedDir === undefined) delete process.env.SQLITE_ALLOWED_DIR;
+      else process.env.SQLITE_ALLOWED_DIR = previousAllowedDir;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('prevents changing database type while saved sessions exist', async () => {
+    const { token, userId } = await signup('change-engine-with-session');
+    const created = await request(app)
+      .post('/api/connections')
+      .set('Authorization', `Bearer ${token}`)
+      .send(demo);
+    await pool.query(
+      `INSERT INTO conversations(user_id, connection_id, title)
+       VALUES ($1, $2, 'Session')`,
+      [userId, created.body.id]
+    );
+
+    const updated = await request(app)
+      .patch(`/api/connections/${created.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        engine: 'sqlite',
+        name: demo.name,
+        database: 'fixture',
+        sqlitePath: '/tmp/unused-fixture.db'
+      });
+
+    expect(updated.status).toBe(409);
+    expect(updated.body.error).toMatch(/saved sessions/i);
   });
 });
