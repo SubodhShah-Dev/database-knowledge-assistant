@@ -4,7 +4,7 @@ import AppShell from './components/AppShell';
 import LoginPage from './pages/LoginPage';
 import NewSessionPage from './pages/NewSessionPage';
 import ConnectionsPage from './pages/ConnectionsPage';
-import { ChatPage } from './pages/PlaceholderPages';
+import ChatPage from './pages/ChatPage';
 
 function RequireAuth() {
   const { token } = useAuth();
