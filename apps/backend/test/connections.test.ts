@@ -98,6 +98,69 @@ describe('connections', () => {
     expect(response.status).toBe(404);
   });
 
+  test('blocks metadata and link-local hosts', async () => {
+    const { token } = await signup('blocked-hosts');
+
+    for (const host of [
+      '169.254.169.254',
+      '::ffff:169.254.169.254',
+      'fd00:ec2::254',
+      '0.0.0.0',
+      'metadata.google.internal',
+      '/var/run/postgresql'
+    ]) {
+      const response = await request(app)
+        .post('/api/connections')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...demo, name: `Blocked ${host}`, host });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/not allowed|valid database host/i);
+    }
+  });
+
+  test('enforces DB_ALLOWED_HOSTS', async () => {
+    const previous = process.env.DB_ALLOWED_HOSTS;
+    process.env.DB_ALLOWED_HOSTS = '127.0.0.1';
+    try {
+      const { token } = await signup('allowlist');
+
+      const allowed = await request(app)
+        .post('/api/connections')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...demo, name: 'Allowlisted Host' });
+      expect(allowed.status).toBe(201);
+
+      const blocked = await request(app)
+        .post('/api/connections')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...demo, name: 'Blocked IPv6', host: '::1' });
+      expect(blocked.status).toBe(400);
+      expect(blocked.body.error).toMatch(/DB_ALLOWED_HOSTS/);
+    } finally {
+      if (previous === undefined) delete process.env.DB_ALLOWED_HOSTS;
+      else process.env.DB_ALLOWED_HOSTS = previous;
+    }
+  });
+
+  test('rejects blocked hosts saved before the guard existed', async () => {
+    const { token, userId } = await signup('legacy-host');
+    const inserted = await pool.query(
+      `INSERT INTO database_connections
+         (owner_id, name, host, port, database_name, username, password_encrypted, ssl_mode)
+       VALUES ($1, 'Legacy Blocked', '169.254.169.254', 5432, 'postgres', 'reader', $2, 'disable')
+       RETURNING id`,
+      [userId, encryptSecret('secret')]
+    );
+
+    const tested = await request(app)
+      .post(`/api/connections/${inserted.rows[0].id}/test`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(tested.status).toBe(200);
+    expect(tested.body.ok).toBe(false);
+    expect(tested.body.error).toMatch(/not allowed/i);
+  });
+
   test('requires force to delete a connection with sessions', async () => {
     const { token, userId } = await signup('force');
     const created = await request(app)

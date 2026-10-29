@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import NewSessionPage from './pages/NewSessionPage';
 import ConnectionsPage from './pages/ConnectionsPage';
 import ChatPage from './pages/ChatPage';
+import SessionsPage from './pages/SessionsPage';
 
 function RequireAuth() {
   const { token } = useAuth();
@@ -21,6 +22,7 @@ export default function AppRouter() {
         <Route element={<AppShell />}>
           <Route index element={<NewSessionPage />} />
           <Route path="connections" element={<ConnectionsPage />} />
+          <Route path="sessions" element={<SessionsPage />} />
           <Route path="c/:id" element={<ChatPage />} />
         </Route>
       </Route>

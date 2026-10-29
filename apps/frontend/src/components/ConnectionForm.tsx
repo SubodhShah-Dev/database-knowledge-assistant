@@ -97,6 +97,7 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
                 value={host}
                 onChange={event => setHost(event.target.value)}
                 placeholder="db.example.com"
+                aria-describedby="host-hint"
                 required
               />
             </label>
@@ -112,6 +113,10 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
               />
             </label>
           </div>
+          <p className="field-hint" id="host-hint">
+            The API must be able to reach this host. Link-local and cloud metadata addresses are
+            blocked.
+          </p>
 
           <div className="form-grid">
             <label className="field">

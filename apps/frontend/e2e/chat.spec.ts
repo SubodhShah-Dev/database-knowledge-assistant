@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('signup, connect, ask with evidence, edit scope, and sign out', async ({ page }) => {
+test('signup, connect, ask with evidence, browse history, edit scope, and sign out', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
 
@@ -15,16 +15,23 @@ test('signup, connect, ask with evidence, edit scope, and sign out', async ({ pa
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole('heading', { name: 'Add a database first' })).toBeVisible();
 
+  await page.goto('/sessions');
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No sessions yet' })).toBeVisible();
+
   await page.goto('/connections');
   await page.getByRole('button', { name: 'Add connection' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Display name').fill('E2E Demo');
-  await dialog.getByLabel('Host').fill('127.0.0.1');
+  await dialog.getByLabel('Host').fill('169.254.169.254');
   await dialog.getByLabel('Port').fill('5435');
   await dialog.getByLabel('Database').fill('demo_analytics');
   await dialog.getByLabel('Username').fill('demo_reader');
   await dialog.getByLabel('Password').fill('demo_reader_password');
   await dialog.getByLabel('SSL mode').selectOption('disable');
+  await dialog.getByRole('button', { name: 'Add connection' }).click();
+  await expect(dialog.getByText(/not allowed/i)).toBeVisible();
+  await dialog.getByLabel('Host').fill('127.0.0.1');
   await dialog.getByRole('button', { name: 'Add connection' }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('heading', { name: 'E2E Demo' })).toBeVisible();
@@ -103,11 +110,41 @@ test('signup, connect, ask with evidence, edit scope, and sign out', async ({ pa
       page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     )
     .toBe(0);
+
+  const menuButton = page.getByRole('button', { name: 'Open menu' });
+  await expect(menuButton).toBeVisible();
+  await menuButton.click();
+  await expect(page.getByRole('button', { name: 'Close menu' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'History' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close menu' }).click();
+
+  await page.getByRole('button', { name: 'Session history' }).click();
+  await expect(page.getByRole('dialog', { name: 'Recent sessions' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Recent sessions' })).toBeHidden();
+
   await page.getByRole('button', { name: 'Tables' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
   await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.getByRole('button', { name: 'Open menu' })).toBeHidden();
+
+  const sessionTitle = 'How many orders are in the demo database?';
+  await page.getByRole('button', { name: 'Session history' }).click();
+  await expect(page.getByRole('dialog', { name: 'Recent sessions' })).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(sessionTitle)).toBeVisible();
+  await page.getByRole('link', { name: 'View all sessions' }).click();
+  await expect(page).toHaveURL(/\/sessions$/);
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(page.locator('.session-row-main').first()).toContainText(sessionTitle);
+
+  await page.locator('.session-row-main').first().click();
+  await expect(page).toHaveURL(/\/c\/\d+$/);
+  await page.goto('/sessions');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: `Delete ${sessionTitle}` }).click();
+  await expect(page.getByRole('heading', { name: 'No sessions yet' })).toBeVisible();
 
   await page.locator('.account-menu button[aria-label="Sign out"]').click();
   await expect(page).toHaveURL(/\/login$/);

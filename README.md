@@ -126,6 +126,7 @@ The demo target contains `customers`, `products`, `orders`, and `order_items` wi
 ## Safety model
 
 - Credentials are encrypted before storage and decrypted only inside the API.
+- Target hosts are checked against blocked link-local/cloud metadata ranges, with optional `DB_ALLOWED_HOSTS` allowlisting.
 - Target queries run as the saved role inside `BEGIN TRANSACTION READ ONLY`.
 - The SQL guard accepts exactly one `SELECT`, CTE, or `UNION` statement.
 - Every referenced table must be in the session's saved table scope.
@@ -165,7 +166,7 @@ npm run build
 - API: `http://127.0.0.1:4100`
 - Web: `http://127.0.0.1:5273`
 
-The Playwright journey signs up a fresh user, adds and tests the demo connection, starts a session, asks a data question and a schema question, verifies SQL/schema evidence, reloads to prove persistence, edits the table scope, exercises an LLM outage and retry, checks the mobile layout, and signs out.
+The Playwright journey signs up a fresh user, adds and tests the demo connection, starts a session, asks a data question and a schema question, verifies SQL/schema evidence, reloads to prove persistence, edits the table scope, exercises an LLM outage and retry, browses and deletes the session from history, checks the mobile layout, and signs out.
 
 The E2E run temporarily points the seeded default model at the local stub and restores the `.env` model configuration during teardown. It expects the Docker databases and app schema from the setup steps to exist.
 
@@ -197,8 +198,8 @@ apps/
     schema.sql           app database schema
     test/                Jest integration tests
   frontend/
-    src/pages/           login, connections, new session, chat
-    src/components/      shell, forms, table picker, evidence, drawer, markdown
+    src/pages/           login, connections, history, new session, chat
+    src/components/      shell, forms, table picker, evidence, drawers, markdown
     src/api/             REST client and SSE parser
     e2e/                 Playwright journey and deterministic LLM stub
 ```
@@ -209,6 +210,8 @@ apps/
 - One statement per question; no multi-statement or DDL support.
 - Relationships come from direct foreign keys only; they are not inferred from column names.
 - A session's connection is immutable. Start a new session to switch databases.
+- External PostgreSQL is supported when the API can reach the host. There is no SSH tunnel or bastion support.
+- SSRF protection blocks link-local/cloud metadata addresses and supports an optional `DB_ALLOWED_HOSTS` allowlist; DNS rebinding remains a residual risk.
 - No RAG, document upload, embeddings, admin console, or usage dashboard in Phase 1.
 
 ## Troubleshooting
@@ -216,6 +219,7 @@ apps/
 - **Port already in use**: stop the process on `4000` or `5173`; E2E uses separate ports `4100` and `5273`.
 - **`ECONNREFUSED` from the browser**: the Vite dev server binds to `127.0.0.1`. Use `http://127.0.0.1:5173` or `http://localhost:5173`.
 - **Connection test fails**: confirm `docker compose ps` is healthy and use `127.0.0.1:5435` for the demo database.
+- **A host is rejected**: link-local/cloud metadata addresses are blocked. Set `DB_ALLOWED_HOSTS` only when you want to restrict connections to specific hosts or CIDRs.
 - **Answers fail with 503**: the LLM provider is missing or unreachable. Check `LLM_BASE_URL`, `LLM_API_KEY`, and the seeded model configuration.
 - **Schema looks stale**: use Refresh schema in the session drawer, or lower `SQL_SCHEMA_CACHE_MS` for development.
 - **E2E cannot start**: make sure the app database schema is applied and the Docker databases are healthy.

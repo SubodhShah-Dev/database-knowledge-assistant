@@ -1,4 +1,5 @@
 import { Client, Pool } from 'pg';
+import { assertHostAllowed, createGuardedSocket } from './hostGuard';
 
 export type SslMode = 'disable' | 'allow' | 'prefer' | 'require' | 'verify-ca' | 'verify-full';
 
@@ -26,11 +27,16 @@ function toPgConfig(config: TargetConfig) {
     password: config.password,
     ssl: sslOption(config.sslMode),
     application_name: 'database-knowledge-assistant',
-    connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 5000)
+    connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 5000),
+    stream: createGuardedSocket
   };
 }
 
 export function safeConnectionError(error: any): string {
+  if (error?.code === 'HOST_BLOCKED') {
+    return error?.message || 'This database host is not allowed.';
+  }
+  if (error?.code === 'HOST_UNRESOLVED') return 'The database host could not be found.';
   if (error?.code === 'ECONNREFUSED') return 'The database refused the connection. Check the host and port.';
   if (error?.code === 'ENOTFOUND') return 'The database host could not be found.';
   if (error?.code === 'ETIMEDOUT') return 'The database connection timed out.';
@@ -41,6 +47,12 @@ export function safeConnectionError(error: any): string {
 }
 
 export async function testConnection(config: TargetConfig) {
+  try {
+    await assertHostAllowed(config.host);
+  } catch (error) {
+    return { ok: false as const, error: safeConnectionError(error) };
+  }
+
   const client = new Client(toPgConfig(config));
 
   try {
