@@ -107,8 +107,9 @@ export default function ConnectionsPage() {
           <p className="eyebrow">Database connections</p>
           <h1>Connections</h1>
           <p>
-            Save encrypted PostgreSQL connections from anywhere the API can reach. Credentials are
-            never returned to the browser; queries always run through a read-only transaction.
+            Save encrypted database connections from anywhere the API can reach. Credentials are
+            never returned to the browser. Queries are scope-checked and use engine-specific
+            read-only safeguards; use read-only database accounts for network databases.
             Link-local and cloud metadata hosts are blocked.
           </p>
         </div>
@@ -143,7 +144,7 @@ export default function ConnectionsPage() {
             <IconDatabase size={24} />
           </span>
           <h2>No connections yet</h2>
-          <p>Add a PostgreSQL database to start asking questions about its schema and data.</p>
+          <p>Add a supported database to start asking questions about its schema and data.</p>
           <button className="btn btn-primary" onClick={() => setAdding(true)}>
             <IconPlus size={17} /> Add your first connection
           </button>
@@ -162,11 +163,13 @@ export default function ConnectionsPage() {
                     <div>
                       <h2>{connection.name}</h2>
                       <p>
-                        {connection.host}:{connection.port} / {connection.database_name}
+                        {connection.engine === 'sqlite'
+                          ? `SQLite / ${connection.database_name}`
+                          : `${connection.host}:${connection.port} / ${connection.database_name}`}
                       </p>
                     </div>
                   </div>
-                  <span className="badge">{connection.ssl_mode}</span>
+                  <span className="badge">{connection.engine}</span>
                 </header>
 
                 <dl className="connection-meta">
@@ -175,8 +178,16 @@ export default function ConnectionsPage() {
                     <dd>{connection.username}</dd>
                   </div>
                   <div>
-                    <dt>Password</dt>
-                    <dd>{connection.has_password ? 'Saved' : 'Not saved'}</dd>
+                    <dt>{connection.engine === 'mongodb' ? 'Connection URI' : 'Password'}</dt>
+                    <dd>
+                      {connection.engine === 'sqlite'
+                        ? 'Not used'
+                        : connection.engine === 'mongodb'
+                          ? 'Stored securely'
+                        : connection.has_password
+                          ? 'Saved'
+                          : 'Not saved'}
+                    </dd>
                   </div>
                 </dl>
 
@@ -185,7 +196,7 @@ export default function ConnectionsPage() {
                   <div className="alert alert-ok">
                     <span className="status-dot" />
                     <span>
-                      Connected. Session is read-only.
+                      Connected.
                       {test.result.warning ? ` ${test.result.warning}` : ''}
                     </span>
                   </div>

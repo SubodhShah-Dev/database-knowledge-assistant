@@ -48,8 +48,7 @@ export default function NewSessionPage() {
         setConnections(nextConnections);
         setModels(nextModels);
         if (nextConnections.length > 0) setConnectionId(nextConnections[0].id);
-        const defaultModel = nextModels.find(model => model.is_default) ?? nextModels[0];
-        if (defaultModel) setModelId(defaultModel.id);
+        setModelId('');
       })
       .catch(err => {
         if (!cancelled) {
@@ -142,8 +141,8 @@ export default function NewSessionPage() {
           <p className="eyebrow">Start a session</p>
           <h1>New session</h1>
           <p>
-            A session is locked to one database connection. Pick the tables the assistant may use;
-            everything else stays out of scope.
+            A session is locked to one database connection. Pick the tables or collections the
+            assistant may use; everything else stays out of scope.
           </p>
         </div>
         <Link className="btn btn-ghost" to="/connections">
@@ -185,7 +184,7 @@ export default function NewSessionPage() {
             <IconDatabase size={24} />
           </span>
           <h2>Add a database first</h2>
-          <p>You need one saved PostgreSQL connection before you can start a session.</p>
+          <p>You need one saved database connection before you can start a session.</p>
           <Link className="btn btn-primary" to="/connections">
             <IconPlus size={17} /> Add connection
           </Link>
@@ -238,8 +237,8 @@ export default function NewSessionPage() {
             <section className="panel">
               <div className="panel-head">
                 <div>
-                  <h2>2. Table scope</h2>
-                  <p>Only these tables can appear in generated SQL.</p>
+                  <h2>2. Data scope</h2>
+                  <p>Only these tables or collections can be queried.</p>
                 </div>
               </div>
 
@@ -285,6 +284,7 @@ export default function NewSessionPage() {
                 <label className="field">
                   <span>Answer model</span>
                   <select value={modelId} onChange={event => setModelId(event.target.value)}>
+                    <option value="">Auto (recommended)</option>
                     {models.map(model => (
                       <option key={model.id} value={model.id}>
                         {model.label}
@@ -294,7 +294,7 @@ export default function NewSessionPage() {
                   </select>
                 </label>
               ) : (
-                <p className="muted">Using the server default model.</p>
+                <p className="muted">Auto will use the server-configured model.</p>
               )}
             </section>
           </div>

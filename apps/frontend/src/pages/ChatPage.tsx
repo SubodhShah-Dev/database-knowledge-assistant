@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ApiError,
@@ -8,19 +8,25 @@ import {
   updateConversation
 } from '../api/client';
 import type {
+  AnswerMode,
   ConversationDetail,
   ConversationSummary,
   Evidence,
   Model,
   StreamStatus,
-  Turn
+  Turn,
+  UsedAnswerMode
 } from '../types';
-import EvidencePanel from '../components/EvidencePanel';
+import EvidencePanel, { FailedQuery } from '../components/EvidencePanel';
 import MarkdownText from '../components/MarkdownText';
 import SessionContextDrawer, { type ContextTab } from '../components/SessionContextDrawer';
+import { CONVERSATION_UPDATED_EVENT } from '../hooks/useSessions';
 import {
   IconAlert,
-  IconArrowRight,
+  IconCheck,
+  IconClose,
+  IconCopy,
+  IconEdit,
   IconLink,
   IconLock,
   IconPlus,
@@ -36,6 +42,7 @@ type ChatTurn = Turn & {
   local?: boolean;
   stopped?: boolean;
   error?: string;
+  failedQuery?: string;
 };
 
 type LiveTurn = {
@@ -45,13 +52,8 @@ type LiveTurn = {
   status: StreamStatus | null;
   error: string;
   stopped: boolean;
+  failedQuery?: string;
 };
-
-const SUGGESTIONS = [
-  'Which customers placed the most orders?',
-  'How are orders and customers related?',
-  'What columns does the products table have?'
-];
 
 function evidenceFromTurn(value: Turn['evidence']): Evidence | null {
   if (!value || Array.isArray(value)) return null;
@@ -60,6 +62,40 @@ function evidenceFromTurn(value: Turn['evidence']): Evidence | null {
 
 function truncateTitle(question: string): string {
   return question.length > 80 ? `${question.slice(0, 77)}...` : question;
+}
+
+function usedModeLabel(mode: UsedAnswerMode): string {
+  if (mode === 'clarify') return 'Clarification';
+  return mode === 'data' ? 'Data' : 'Schema';
+}
+
+function modeIcon(mode: AnswerMode | UsedAnswerMode, size = 14) {
+  if (mode === 'data') return <IconTable size={size} />;
+  if (mode === 'schema') return <IconLink size={size} />;
+  if (mode === 'clarify') return <IconAlert size={size} />;
+  return <IconSpark size={size} />;
+}
+
+async function copyPromptToClipboard(prompt: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(prompt);
+    return;
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = prompt;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    let copied = false;
+    try {
+      area.select();
+      copied = document.execCommand('copy');
+    } finally {
+      area.remove();
+    }
+    if (copied) return;
+    throw new Error('Clipboard access is unavailable.');
+  }
 }
 
 function isAbort(error: unknown): boolean {
@@ -78,6 +114,11 @@ export default function ChatPage() {
   const [modelId, setModelId] = useState('');
   const [modelSaving, setModelSaving] = useState(false);
   const [modelError, setModelError] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [titleError, setTitleError] = useState('');
+  const [answerMode, setAnswerMode] = useState<AnswerMode>('auto');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -92,8 +133,11 @@ export default function ChatPage() {
     setLoading(true);
     setLoadError('');
     setModelError('');
+    setEditingTitle(false);
+    setTitleError('');
     setLive(null);
     setStreaming(false);
+    setAnswerMode('auto');
     setDraft('');
     setDrawer(null);
 
@@ -103,8 +147,7 @@ export default function ChatPage() {
         setConversation(detail);
         setTurns(detail.turns);
         setModels(nextModels);
-        const defaultModel = nextModels.find(model => model.is_default) ?? nextModels[0];
-        setModelId(detail.modelId ?? defaultModel?.id ?? '');
+        setModelId(detail.modelId ?? '');
         stickToBottom.current = true;
       })
       .catch(err => {
@@ -126,6 +169,20 @@ export default function ChatPage() {
       cancelled = true;
     };
   }, [id, reloadNonce]);
+
+  useEffect(() => {
+    function onConversationUpdated(event: Event) {
+      const updated = (event as CustomEvent<ConversationSummary>).detail;
+      setConversation(current =>
+        current?.id === updated.id
+          ? { ...current, ...updated, connection: updated.connection ?? current.connection }
+          : current
+      );
+    }
+
+    window.addEventListener(CONVERSATION_UPDATED_EVENT, onConversationUpdated);
+    return () => window.removeEventListener(CONVERSATION_UPDATED_EVENT, onConversationUpdated);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -154,7 +211,8 @@ export default function ChatPage() {
         createdAt: new Date().toISOString(),
         local: true,
         stopped: live.stopped,
-        error: live.error || undefined
+        error: live.error || undefined,
+        failedQuery: live.failedQuery
       }
     ]);
     setLive(null);
@@ -190,7 +248,7 @@ export default function ChatPage() {
 
     try {
       await streamQuestion(
-        { question: text, conversationId: conversation.id },
+        { question: text, conversationId: conversation.id, mode: answerMode },
         {
           onStatus: status => {
             if (controllerRef.current !== controller) return;
@@ -242,6 +300,7 @@ export default function ChatPage() {
                 answer: payload.answer,
                 evidence: evidence ?? [],
                 model: payload.model,
+                mode: payload.mode,
                 createdAt: new Date().toISOString()
               }
             ]);
@@ -267,6 +326,7 @@ export default function ChatPage() {
                     ...current,
                     evidence: payload?.evidence ?? current.evidence,
                     error: message,
+                    failedQuery: payload?.sql,
                     status: { phase: 'error', label: 'Could not complete the answer' }
                   }
                 : current
@@ -308,8 +368,9 @@ export default function ChatPage() {
                 ...current,
                 error:
                   err instanceof ApiError ? err.message : 'Could not reach the assistant.',
-                status: { phase: 'error', label: 'Could not complete the answer' }
-              }
+              failedQuery: err instanceof ApiError ? err.query : undefined,
+              status: { phase: 'error', label: 'Could not complete the answer' }
+            }
             : current
         );
       }
@@ -337,19 +398,69 @@ export default function ChatPage() {
   }
 
   async function changeModel(value: string) {
-    if (!conversation || !value) return;
+    if (!conversation) return;
     const previous = modelId;
     setModelId(value);
     setModelSaving(true);
     setModelError('');
     try {
-      const updated = await updateConversation(conversation.id, { modelId: value });
+      const updated = await updateConversation(conversation.id, { modelId: value || null });
       setConversation(current => (current ? { ...current, ...updated } : current));
     } catch (err) {
       setModelId(previous);
       setModelError(err instanceof ApiError ? err.message : 'Could not change the model.');
     } finally {
       setModelSaving(false);
+    }
+  }
+
+  function startTitleEdit() {
+    if (!conversation) return;
+    setDraftTitle(conversation.title);
+    setTitleError('');
+    setEditingTitle(true);
+  }
+
+  function cancelTitleEdit() {
+    if (titleSaving) return;
+    setEditingTitle(false);
+    setDraftTitle('');
+    setTitleError('');
+  }
+
+  async function saveTitle(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!conversation || titleSaving) return;
+    const title = draftTitle.trim();
+    if (!title) {
+      setTitleError('Session name cannot be empty.');
+      return;
+    }
+    if (title === conversation.title) {
+      cancelTitleEdit();
+      return;
+    }
+
+    setTitleSaving(true);
+    setTitleError('');
+    try {
+      const response = await updateConversation(conversation.id, { title });
+      const updated: ConversationSummary = {
+        ...conversation,
+        ...response,
+        title,
+        connection: response.connection ?? conversation.connection
+      };
+      setConversation(current => (current ? { ...current, ...updated } : current));
+      window.dispatchEvent(
+        new CustomEvent<ConversationSummary>(CONVERSATION_UPDATED_EVENT, { detail: updated })
+      );
+      setEditingTitle(false);
+      setDraftTitle('');
+    } catch (err) {
+      setTitleError(err instanceof ApiError ? err.message : 'Could not rename the session.');
+    } finally {
+      setTitleSaving(false);
     }
   }
 
@@ -400,50 +511,94 @@ export default function ChatPage() {
   return (
     <section className="chat-page">
       <header className="chat-head">
-        <div className="chat-head-main">
-          <p className="eyebrow">Session</p>
-          <h1 title={conversation.title}>{conversation.title}</h1>
-          <div className="chat-meta">
-            <span className="badge badge-lock">
-              <IconLock size={12} /> {conversation.connection.name}
-            </span>
-            <span>{conversation.connection.database}</span>
-            <span className="chat-meta-dot">·</span>
-            <span>{conversation.selectedTables.length} tables in scope</span>
+        <div className="chat-head-content">
+          <div className="chat-head-main">
+            {editingTitle ? (
+              <form className="chat-title-edit" onSubmit={event => void saveTitle(event)}>
+                <input
+                  autoFocus
+                  value={draftTitle}
+                  onChange={event => setDraftTitle(event.target.value)}
+                  aria-label="Session name"
+                  maxLength={200}
+                  required
+                  disabled={titleSaving}
+                />
+                <button
+                  className="btn btn-ghost btn-icon chat-title-save"
+                  type="submit"
+                  aria-label="Save session name"
+                  title="Save name"
+                  disabled={titleSaving || !draftTitle.trim()}
+                >
+                  {titleSaving ? <span className="spinner spinner-sm" /> : <IconCheck size={16} />}
+                </button>
+                <button
+                  className="btn btn-ghost btn-icon"
+                  type="button"
+                  aria-label="Cancel session name change"
+                  title="Cancel"
+                  onClick={cancelTitleEdit}
+                  disabled={titleSaving}
+                >
+                  <IconClose size={16} />
+                </button>
+              </form>
+            ) : (
+              <div className="chat-title-row">
+                <h1 title={conversation.title}>{conversation.title}</h1>
+                <button
+                  className="btn btn-ghost btn-icon chat-title-rename"
+                  type="button"
+                  aria-label="Rename session"
+                  title="Rename session"
+                  onClick={startTitleEdit}
+                  disabled={titleSaving}
+                >
+                  <IconEdit size={15} />
+                </button>
+              </div>
+            )
+          }
           </div>
-        </div>
 
-        <div className="chat-actions">
-          {models.length > 0 ? (
-            <label className="model-picker">
-              <span>Model</span>
-              <select
-                value={modelId}
-                onChange={event => void changeModel(event.target.value)}
-                disabled={modelSaving || streaming}
-                aria-label="Answer model"
-              >
-                {models.map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <span className="badge">{shortModelName(activeModel?.model_id)}</span>
-          )}
-          <button className="btn btn-ghost btn-sm" onClick={() => setDrawer('schema')}>
-            <IconTable size={15} /> Tables
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setDrawer('relationships')}>
-            <IconLink size={15} /> Relationships
-          </button>
-          <Link className="btn btn-ghost btn-sm" to="/">
-            <IconPlus size={15} /> New session
-          </Link>
-        </div>
+            <div className="chat-actions">
+              {models.length > 0 ? (
+                <label className="model-picker">
+                  <span>Model</span>
+                  <select
+                    value={modelId}
+                    onChange={event => void changeModel(event.target.value)}
+                    disabled={modelSaving || streaming}
+                    aria-label="Answer model"
+                  >
+                    <option value="">Auto (recommended)</option>
+                    {models.map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <span className="badge">Auto · {shortModelName(activeModel?.model_id)}</span>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => setDrawer('schema')}>
+                <IconTable size={15} /> Tables
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDrawer('relationships')}>
+                <IconLink size={15} /> Relationships
+              </button>
+            </div>
+          </div>
       </header>
+
+      {titleError && (
+        <div className="alert alert-danger chat-title-error" role="alert">
+          <IconAlert size={16} />
+          <span>{titleError}</span>
+        </div>
+      )}
 
       {modelError && (
         <div className="alert alert-danger chat-alert">
@@ -463,26 +618,25 @@ export default function ChatPage() {
       >
         {turns.length === 0 && !live && (
           <div className="chat-empty">
-            <span className="placeholder-icon">
+            <span className="chat-empty-icon">
               <IconSpark size={24} />
             </span>
+            <span className="chat-empty-kicker">Your database is ready</span>
             <h2>Ask about {conversation.connection.name}</h2>
             <p>
-              Questions are answered with read-only SQL and the rows behind the answer. Start with
-              one of these, or write your own.
+              Get a clear answer with the SQL and data used to produce it. Try a question or write
+              your own below.
             </p>
-            <div className="suggestion-grid">
-              {SUGGESTIONS.map(suggestion => (
-                <button
-                  key={suggestion}
-                  className="suggestion"
-                  onClick={() => void ask(suggestion)}
-                  disabled={streaming}
-                >
-                  <span>{suggestion}</span>
-                  <IconArrowRight size={16} />
-                </button>
-              ))}
+            <div className="chat-empty-scope">
+              <span className="chat-empty-scope-item" title="Connection">
+                <IconLock size={12} /> {conversation.connection.name}
+              </span>
+              <span className="chat-empty-scope-item" title="Database">
+                {conversation.connection.database}
+              </span>
+              <span className="chat-empty-scope-item" title="Tables in scope">
+                <IconTable size={12} /> {conversation.selectedTables.length} tables
+              </span>
             </div>
           </div>
         )}
@@ -527,7 +681,7 @@ export default function ChatPage() {
             }
           }}
           placeholder={streaming ? 'Answer in progress…' : 'Ask about your database…'}
-          rows={2}
+          rows={1}
           maxLength={2000}
           disabled={streaming}
         />
@@ -537,6 +691,35 @@ export default function ChatPage() {
             {draft.length > 1800 ? ` · ${draft.length}/2000` : ''}
           </span>
           <div className="composer-actions">
+            {!streaming && (
+              <div
+                className="answer-mode-picker"
+                role="group"
+                aria-label="Answer mode"
+              >
+                <span className="answer-mode-label">Answer with</span>
+                {(['auto', 'data', 'schema'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className="answer-mode-option"
+                    aria-pressed={answerMode === mode}
+                    aria-label={`${mode === 'auto' ? 'Auto' : mode === 'data' ? 'Data' : 'Schema'} answer mode`}
+                    title={
+                      mode === 'auto'
+                        ? 'Choose automatically based on the question'
+                        : mode === 'data'
+                          ? 'Run a read-only query on selected tables'
+                          : 'Answer from table and relationship metadata'
+                    }
+                    onClick={() => setAnswerMode(mode)}
+                  >
+                    {modeIcon(mode)}
+                    <span>{mode === 'auto' ? 'Auto' : mode === 'data' ? 'Data' : 'Schema'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {streaming ? (
               <button type="button" className="btn btn-danger" onClick={stop}>
                 <IconStop size={15} /> Stop
@@ -575,14 +758,24 @@ function TurnView({
   disabled: boolean;
 }) {
   const evidence = evidenceFromTurn(turn.evidence);
+  const usedMode =
+    turn.mode ??
+    (evidence?.kind === 'schema' ? 'schema' : evidence?.kind === 'sql' ? 'data' : null);
   return (
     <article className="chat-turn">
-      <div className="msg-user">
-        <p>{turn.question}</p>
-      </div>
+      <PromptBubble prompt={turn.question} />
       <div className="msg-assistant">
         <div className="msg-meta">
-          <span>Assistant</span>
+          <span className="assistant-mark" aria-hidden="true">
+            <IconSpark size={14} />
+          </span>
+          <span className="assistant-name">Answer</span>
+          {usedMode && (
+            <span className={`answer-mode-badge answer-mode-badge-${usedMode}`}>
+              {modeIcon(usedMode, 12)}
+              {usedModeLabel(usedMode)}
+            </span>
+          )}
           {turn.model && <span>{shortModelName(turn.model)}</span>}
           {turn.local && <span className="badge">Not saved</span>}
         </div>
@@ -605,6 +798,8 @@ function TurnView({
             </button>
           </p>
         )}
+
+        {turn.failedQuery && <FailedQuery sql={turn.failedQuery} />}
 
         {turn.answer ? (
           <MarkdownText text={turn.answer} />
@@ -631,12 +826,13 @@ function LiveTurnView({
 }) {
   return (
     <article className="chat-turn">
-      <div className="msg-user">
-        <p>{live.question}</p>
-      </div>
+      <PromptBubble prompt={live.question} />
       <div className="msg-assistant">
         <div className="msg-meta">
-          <span>Assistant</span>
+          <span className="assistant-mark" aria-hidden="true">
+            <IconSpark size={14} />
+          </span>
+          <span className="assistant-name">Answer</span>
         </div>
 
         {live.status && (
@@ -667,8 +863,61 @@ function LiveTurnView({
 
         {live.answer && <MarkdownText text={live.answer} />}
 
+        {live.failedQuery && <FailedQuery sql={live.failedQuery} />}
+
         {live.evidence && <EvidencePanel evidence={live.evidence} />}
       </div>
     </article>
+  );
+}
+
+function PromptBubble({ prompt }: { prompt: string }) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  async function copyPrompt() {
+    try {
+      await copyPromptToClipboard(prompt);
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+    window.setTimeout(() => setCopyState('idle'), 1800);
+  }
+
+  return (
+    <div className="msg-user">
+      <p>{prompt}</p>
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon prompt-copy"
+        onClick={() => void copyPrompt()}
+        aria-label={
+          copyState === 'copied'
+            ? 'Prompt copied'
+            : copyState === 'error'
+              ? 'Could not copy prompt'
+              : 'Copy prompt'
+        }
+        title={
+          copyState === 'copied'
+            ? 'Prompt copied'
+            : copyState === 'error'
+              ? 'Could not copy prompt'
+              : 'Copy prompt'
+        }
+      >
+        {copyState === 'copied' ? (
+          <IconCheck size={15} />
+        ) : copyState === 'error' ? (
+          <IconAlert size={15} />
+        ) : (
+          <IconCopy size={15} />
+        )}
+      </button>
+      <span className="sr-only" aria-live="polite">
+        {copyState === 'copied' ? 'Prompt copied to clipboard.' : ''}
+        {copyState === 'error' ? 'Could not copy prompt to clipboard.' : ''}
+      </span>
+    </div>
   );
 }

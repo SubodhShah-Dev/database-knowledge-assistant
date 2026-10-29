@@ -2,9 +2,21 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { IconAlert, IconArrowRight, IconDatabase, IconLock, IconSpark } from '../components/icons';
+import {
+  IconAlert,
+  IconArrowRight,
+  IconDatabase,
+  IconLock,
+  IconSpark,
+  IconTable
+} from '../components/icons';
 
 type Mode = 'login' | 'signup';
+
+const DEMO_ACCOUNTS = [
+  { label: 'User demo', email: 'demo@example.com', password: 'DemoPassword123!' },
+  { label: 'Admin demo', email: 'admin@example.com', password: 'AdminPassword123!' }
+] as const;
 
 export default function LoginPage() {
   const { token, login, register } = useAuth();
@@ -40,6 +52,15 @@ export default function LoginPage() {
     }
   }
 
+  function changeMode(nextMode: Mode) {
+    setMode(nextMode);
+    setError('');
+    if (nextMode === 'signup') {
+      setEmail('');
+      setPassword('');
+    }
+  }
+
   return (
     <div className="login-page">
       <section className="login-intro">
@@ -47,49 +68,84 @@ export default function LoginPage() {
           <span className="brand-mark brand-mark-lg">
             <IconDatabase size={28} />
           </span>
-          <span>Database Knowledge Assistant</span>
+          <span className="login-brand-name">
+            <strong>Database Knowledge</strong>
+            <small>ASSISTANT</small>
+          </span>
         </div>
 
-        <div className="login-copy">
-          <p className="eyebrow">Read-only SQL · Visible evidence</p>
-          <h1>Ask your database a question. See exactly how it answered.</h1>
-          <p className="lede">
-            Connect PostgreSQL, choose the tables in scope, and inspect the generated SQL,
-            rows, and relationships behind every response.
-          </p>
+        <div className="login-hero">
+          <div className="login-copy">
+            <p className="eyebrow">YOUR DATA, IN CONTEXT</p>
+            <h1>Make your database part of the conversation.</h1>
+            <p className="lede">
+              Ask real questions in plain language. Get answers grounded in your schema, with the
+              query and results there to inspect.
+            </p>
+          </div>
+
+          <div className="login-preview" aria-label="A preview of an answer with query evidence">
+            <div className="login-preview-top">
+              <span className="login-preview-dot" />
+              <span>DATABASE SESSION</span>
+              <span className="login-preview-live">READY</span>
+            </div>
+            <div className="login-preview-question">
+              <span>QUESTION</span>
+              <strong>How is my data connected?</strong>
+            </div>
+            <div className="login-preview-flow">
+              <div className="login-preview-node">
+                <IconTable size={15} />
+                <span>Schema</span>
+              </div>
+              <span className="login-preview-line" />
+              <div className="login-preview-node">
+                <IconDatabase size={15} />
+                <span>Read-only query</span>
+              </div>
+              <span className="login-preview-line" />
+              <div className="login-preview-node login-preview-node-result">
+                <IconSpark size={15} />
+                <span>Evidence-backed answer</span>
+              </div>
+            </div>
+            <div className="login-preview-foot">
+              <IconLock size={14} />
+              <span>Scoped to the tables in your session</span>
+            </div>
+          </div>
         </div>
 
         <ul className="login-features">
           <li>
-            <IconLock size={18} />
-            <span>Credentials encrypted; queries run in read-only transactions.</span>
+            <IconDatabase size={17} />
+            <span>PostgreSQL, MySQL, TiDB, SQL Server, SQLite &amp; MongoDB</span>
           </li>
           <li>
-            <IconSpark size={18} />
-            <span>Schema and data questions answered from a controlled table scope.</span>
-          </li>
-          <li>
-            <IconArrowRight size={18} />
-            <span>Streaming answers with query evidence you can copy and verify.</span>
+            <IconLock size={17} />
+            <span>Encrypted credentials. Queries you can inspect.</span>
           </li>
         </ul>
 
         <div className="login-footnote">
-          <span className="status-dot" /> Local demo: PostgreSQL on 5434 / 5435
+          <span className="status-dot" /> A clearer view of your data starts here
         </div>
       </section>
 
       <section className="login-panel">
         <div className="login-card">
+          <div className="login-card-brand">
+            <span className="login-card-mark"><IconDatabase size={18} /></span>
+            <span>WORKSPACE ACCESS</span>
+          </div>
           <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
             <button
               role="tab"
               aria-selected={mode === 'login'}
               className={mode === 'login' ? 'active' : ''}
-              onClick={() => {
-                setMode('login');
-                setError('');
-              }}
+              type="button"
+              onClick={() => changeMode('login')}
             >
               Sign in
             </button>
@@ -97,21 +153,19 @@ export default function LoginPage() {
               role="tab"
               aria-selected={mode === 'signup'}
               className={mode === 'signup' ? 'active' : ''}
-              onClick={() => {
-                setMode('signup');
-                setError('');
-              }}
+              type="button"
+              onClick={() => changeMode('signup')}
             >
               Create account
             </button>
           </div>
 
           <div className="login-heading">
-            <h2>{mode === 'login' ? 'Welcome back' : 'Create your workspace'}</h2>
+            <h2>{mode === 'login' ? 'Welcome back' : 'Start exploring'}</h2>
             <p>
               {mode === 'login'
-                ? 'Sign in to continue to your sessions and saved connections.'
-                : 'Use an email and a password of at least 8 characters.'}
+                ? 'Sign in to pick up where you left off.'
+                : 'Create an account to connect your first database.'}
             </p>
           </div>
 
@@ -154,24 +208,43 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {mode === 'login' && (
-            <div className="demo-hint">
-              <div>
-                <strong>Demo account</strong>
-                <span>demo@example.com · DemoPassword123!</span>
+          <div className="auth-extra">
+            {mode === 'login' ? (
+              <div className="demo-accounts" aria-label="Demo accounts">
+                <p className="demo-accounts-title">Demo accounts</p>
+                {DEMO_ACCOUNTS.map(account => (
+                  <div className="demo-account" key={account.email}>
+                    <div className="demo-account-info">
+                      <strong>{account.label}</strong>
+                      <span>{account.email}</span>
+                      <span>Password: {account.password}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-ghost demo-fill"
+                      aria-label={`Fill ${account.label.toLowerCase()} credentials`}
+                      title={`Fill ${account.label.toLowerCase()} credentials`}
+                      onClick={() => {
+                        setEmail(account.email);
+                        setPassword(account.password);
+                        setError('');
+                      }}
+                    >
+                      <IconArrowRight size={15} />
+                      <span>Fill</span>
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => {
-                  setEmail('demo@example.com');
-                  setPassword('DemoPassword123!');
-                }}
-              >
-                Use demo
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="signup-benefits" aria-label="Your workspace includes">
+                <p className="demo-accounts-title">Your workspace includes</p>
+                <p><IconDatabase size={16} /> Saved database connections</p>
+                <p><IconSpark size={16} /> Answers with SQL and data evidence</p>
+                <p><IconLock size={16} /> Encrypted credentials and private sessions</p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </div>

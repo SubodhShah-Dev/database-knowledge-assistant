@@ -5,7 +5,17 @@ import { useSessions } from '../hooks/useSessions';
 import { IconHistory, IconPlus, IconSearch } from '../components/icons';
 
 export default function SessionsPage() {
-  const { sessions, loading, error, actionError, deletingId, load, remove } = useSessions();
+  const {
+    sessions,
+    loading,
+    error,
+    actionError,
+    deletingId,
+    renamingId,
+    load,
+    remove,
+    rename
+  } = useSessions();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -60,7 +70,9 @@ export default function SessionsPage() {
         error={error}
         actionError={actionError}
         deletingId={deletingId}
+        renamingId={renamingId}
         onDelete={remove}
+        onRename={rename}
         onRetry={load}
         empty={
           sessions.length === 0 ? (
