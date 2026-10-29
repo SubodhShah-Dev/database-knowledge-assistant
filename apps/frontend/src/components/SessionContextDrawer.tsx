@@ -302,10 +302,17 @@ export default function SessionContextDrawer({
             </>
           ) : tab === 'relationships' && schema ? (
             <div className="drawer-relationships">
-              <p className="muted">
-                Direct foreign keys between the tables currently in scope. Changes are only saved
-                when you save the table scope.
-              </p>
+              <div className="drawer-relationships-summary">
+                <div>
+                  <strong>
+                    {relationships.length} {relationships.length === 1 ? 'relationship' : 'relationships'}
+                  </strong>
+                  <span>
+                    between {selected.length} selected {selected.length === 1 ? 'table' : 'tables'}
+                  </span>
+                </div>
+                <p>Only database-defined foreign keys are shown.</p>
+              </div>
               <RelationshipList relationships={relationships} />
             </div>
           ) : (

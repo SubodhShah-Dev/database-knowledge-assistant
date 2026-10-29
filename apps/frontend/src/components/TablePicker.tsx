@@ -55,7 +55,7 @@ export default function TablePicker({ tables, selected, onChange, max }: Props) 
     <div className="table-picker">
       <div className="table-picker-head">
         <div>
-          <h3>Tables in scope</h3>
+          <h3>Tables and collections in scope</h3>
           <p>
             {selected.length} of {tables.length} selected
           </p>
@@ -66,7 +66,7 @@ export default function TablePicker({ tables, selected, onChange, max }: Props) 
             className="btn btn-ghost btn-sm"
             onClick={() => onChange(tables.map(keyOf))}
             disabled={selected.length === tables.length || (max !== undefined && tables.length > max)}
-            title={max !== undefined && tables.length > max ? `Select at most ${max} tables` : undefined}
+            title={max !== undefined && tables.length > max ? `Select at most ${max} items` : undefined}
           >
             Select all
           </button>
@@ -86,13 +86,13 @@ export default function TablePicker({ tables, selected, onChange, max }: Props) 
         <input
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search tables or columns"
-          aria-label="Search tables or columns"
+          placeholder="Search tables, collections, or fields"
+          aria-label="Search tables, collections, or fields"
         />
       </label>
 
-      <div className="table-list" role="group" aria-label="Select tables">
-        {filtered.length === 0 && <p className="muted empty-note">No tables match that search.</p>}
+      <div className="table-list" role="group" aria-label="Select tables and collections">
+      {filtered.length === 0 && <p className="muted empty-note">No items match that search.</p>}
 
         {filtered.map(table => {
           const key = keyOf(table);

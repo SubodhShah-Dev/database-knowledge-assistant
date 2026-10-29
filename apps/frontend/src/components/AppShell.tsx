@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import SessionsDrawer from './SessionsDrawer';
 import {
-  IconChat,
   IconClose,
   IconDatabase,
   IconHistory,
@@ -11,6 +10,7 @@ import {
   IconMenu,
   IconMoon,
   IconPlus,
+  IconSpark,
   IconSun
 } from './icons';
 
@@ -56,31 +56,28 @@ export default function AppShell() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isChat ? ' app-shell-chat' : ''}`}>
       <header className="app-header">
         <NavLink to="/" className="brand" aria-label="Database Knowledge Assistant home">
           <span className="brand-mark">
             <IconDatabase size={20} />
           </span>
-          <span className="brand-text">
-            <strong>Database</strong>
-            <span>Knowledge Assistant</span>
-          </span>
         </NavLink>
 
         <nav className={`main-nav${menuOpen ? ' open' : ''}`} aria-label="Main navigation">
-          <NavLink to="/" end className="nav-link">
+          <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             <IconPlus size={16} /> New session
           </NavLink>
-          <NavLink to="/connections" className="nav-link">
+          <NavLink to="/connections" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             <IconDatabase size={16} /> Connections
           </NavLink>
-          <NavLink to="/sessions" className="nav-link">
-            <IconHistory size={16} /> History
-          </NavLink>
-          {isChat && (
-            <NavLink to={location.pathname} className="nav-link nav-link-active">
-              <IconChat size={16} /> Session
+          {user?.role === 'admin' && (
+            <NavLink
+              to="/admin/models"
+              className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            >
+              <IconSpark size={16} />
+              AI providers
             </NavLink>
           )}
           <div className="mobile-account">

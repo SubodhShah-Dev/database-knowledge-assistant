@@ -13,7 +13,17 @@ export default function SessionsDrawer({ currentId, onClose }: Props) {
   const navigate = useNavigate();
   const closeButton = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const { sessions, loading, error, actionError, deletingId, load, remove } = useSessions();
+  const {
+    sessions,
+    loading,
+    error,
+    actionError,
+    deletingId,
+    renamingId,
+    load,
+    remove,
+    rename
+  } = useSessions();
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -105,9 +115,11 @@ export default function SessionsDrawer({ currentId, onClose }: Props) {
             error={error}
             actionError={actionError}
             deletingId={deletingId}
+            renamingId={renamingId}
             currentId={currentId}
             compact
             onDelete={session => void handleDelete(session)}
+            onRename={rename}
             onRetry={load}
             onNavigate={onClose}
             empty={
