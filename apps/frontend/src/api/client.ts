@@ -1,5 +1,8 @@
 import type {
   AuthResponse,
+  AnswerMode,
+  AdminModel,
+  AdminModelInput,
   Connection,
   ConnectionInput,
   ConnectionTest,
@@ -22,7 +25,8 @@ const USER_KEY = 'dka.user';
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly query?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -174,16 +178,38 @@ export function listModels(): Promise<Model[]> {
   return apiFetch<Model[]>('/api/models');
 }
 
+export function listAdminModels(): Promise<AdminModel[]> {
+  return apiFetch<AdminModel[]>('/api/models/admin');
+}
+
+export function createAdminModel(input: AdminModelInput): Promise<AdminModel> {
+  return apiFetch<AdminModel>('/api/models', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateAdminModel(id: string, input: AdminModelInput): Promise<AdminModel> {
+  return apiFetch<AdminModel>(`/api/models/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteAdminModel(id: string): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>(`/api/models/${id}`, { method: 'DELETE' });
+}
+
 type StreamHandlers = {
   onStatus?: (status: StreamStatus) => void;
   onEvidence?: (evidence: Evidence) => void;
   onToken?: (text: string) => void;
   onDone?: (payload: DonePayload) => void;
-  onError?: (message: string, payload?: any) => void;
+  onError?: (message: string, payload?: { sql?: string; evidence?: Evidence }) => void;
 };
 
 export async function streamQuestion(
-  body: { question: string; conversationId: string },
+  body: { question: string; conversationId: string; mode?: AnswerMode },
   handlers: StreamHandlers,
   signal?: AbortSignal
 ): Promise<void> {
@@ -204,7 +230,7 @@ export async function streamQuestion(
       clearAuth();
       window.location.assign('/login');
     }
-    throw new ApiError(response.status, data?.error ?? 'Could not ask the question.');
+    throw new ApiError(response.status, data?.error ?? 'Could not ask the question.', data?.sql);
   }
 
   const reader = response.body.getReader();

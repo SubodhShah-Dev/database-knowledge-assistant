@@ -11,25 +11,31 @@ export type AuthResponse = {
 
 export type Connection = {
   id: string;
+  engine: 'postgres' | 'mysql' | 'sqlserver' | 'sqlite' | 'mongodb';
   name: string;
   host: string;
   port: number;
   database_name: string;
+  sqlite_path: string | null;
   username: string;
   ssl_mode: string;
   has_password: boolean;
+  has_sessions: boolean;
   created_at: string;
   updated_at: string;
 };
 
 export type ConnectionInput = {
+  engine: Connection['engine'];
   name: string;
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-  sslMode: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  username?: string;
+  password?: string;
+  sslMode?: string;
+  sqlitePath?: string;
+  connectionUri?: string;
 };
 
 export type ConnectionUpdateInput = Omit<ConnectionInput, 'password'> & { password?: string };
@@ -79,6 +85,26 @@ export type Model = {
   is_default: boolean;
 };
 
+export type AnswerMode = 'auto' | 'data' | 'schema';
+export type UsedAnswerMode = AnswerMode | 'clarify';
+
+export type AdminModel = Model & {
+  base_url: string;
+  is_enabled: boolean;
+  sort_order: number;
+  has_api_key: boolean;
+  api_key_source: 'stored' | 'environment' | null;
+};
+
+export type AdminModelInput = {
+  label: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey?: string;
+  isDefault: boolean;
+  sortOrder: number;
+};
+
 export type TableRef = { schema: string; table: string };
 
 export type ConversationSummary = {
@@ -96,6 +122,7 @@ export type QueryEvidence = {
   version: 1;
   kind: 'sql';
   sql: string;
+  queryFormat?: 'sql' | 'mongodb';
   columns: Array<{ name: string; dataType: string }>;
   rows: unknown[][];
   rowCount: number;
@@ -129,6 +156,7 @@ export type Turn = {
   answer: string;
   evidence: Evidence | [] | null;
   model: string | null;
+  mode?: UsedAnswerMode | null;
   createdAt: string;
 };
 
@@ -141,6 +169,7 @@ export type DonePayload = {
   messageId: string;
   answer: string;
   model: string;
+  mode: UsedAnswerMode;
 };
 
 export type StreamStatus = {
