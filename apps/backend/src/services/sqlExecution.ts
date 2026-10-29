@@ -7,7 +7,7 @@ export class TargetDbTimeoutError extends Error {
   }
 }
 
-export type QueryColumn = { name: string; dataType: number };
+export type QueryColumn = { name: string; dataType: number | string };
 export type QueryResult = {
   columns: QueryColumn[];
   rows: unknown[][];

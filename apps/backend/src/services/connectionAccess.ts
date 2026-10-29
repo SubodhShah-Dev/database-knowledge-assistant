@@ -2,14 +2,20 @@ import { pool } from '../db';
 import { decryptSecret } from './connectionCrypto';
 import { getPool, type SslMode, type TargetConfig } from './connectionPool';
 import { getSchemaSnapshot, type SchemaSnapshot } from './introspection';
+import { getDatabaseSchema } from './databaseAdapters';
+
+export type DatabaseEngine = 'postgres' | 'mysql' | 'sqlserver' | 'sqlite' | 'mongodb';
 
 export type OwnedConnection = {
   id: string;
   owner_id: string;
+  engine: DatabaseEngine;
   name: string;
   host: string;
   port: number;
   database_name: string;
+  sqlite_path: string | null;
+  connection_uri_encrypted: string | null;
   username: string;
   password_encrypted: string;
   ssl_mode: SslMode;
@@ -30,12 +36,17 @@ export async function getOwnedConnection(
 
 export function toTargetConfig(row: OwnedConnection): TargetConfig {
   return {
+    engine: row.engine ?? 'postgres',
     host: row.host,
     port: row.port,
     database: row.database_name,
     user: row.username,
     password: decryptSecret(row.password_encrypted),
-    sslMode: row.ssl_mode
+    sslMode: row.ssl_mode,
+    sqlitePath: row.sqlite_path ?? undefined,
+    connectionUri: row.connection_uri_encrypted
+      ? decryptSecret(row.connection_uri_encrypted)
+      : undefined
   };
 }
 
@@ -49,6 +60,9 @@ export async function getConnectionSchema(
   refresh = false
 ): Promise<SchemaSnapshot> {
   const config = toTargetConfig(connection);
+  if (config.engine !== 'postgres') {
+    return getDatabaseSchema(connection.id, config, refresh);
+  }
   const targetPool = getPool(connection, config);
   return getSchemaSnapshot(targetPool, connection.id, config, refresh);
 }

@@ -29,7 +29,7 @@ export function encryptSecret(plain: string): string {
 
 export function decryptSecret(value: string): string {
   const [version, ivB64, tagB64, dataB64] = value.split(':');
-  if (version !== VERSION || !ivB64 || !tagB64 || !dataB64) {
+  if (version !== VERSION || !ivB64 || !tagB64 || dataB64 === undefined) {
     throw new Error('Malformed encrypted secret');
   }
 

@@ -11,10 +11,14 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS database_connections (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  engine text NOT NULL DEFAULT 'postgres'
+    CHECK (engine IN ('postgres', 'mysql', 'sqlserver', 'sqlite', 'mongodb')),
   name text NOT NULL,
   host text NOT NULL,
   port integer NOT NULL DEFAULT 5432,
   database_name text NOT NULL,
+  sqlite_path text,
+  connection_uri_encrypted text,
   username text NOT NULL,
   password_encrypted text NOT NULL,
   ssl_mode text NOT NULL DEFAULT 'prefer'
@@ -23,6 +27,23 @@ CREATE TABLE IF NOT EXISTS database_connections (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (owner_id, name)
 );
+ALTER TABLE database_connections
+  ADD COLUMN IF NOT EXISTS engine text NOT NULL DEFAULT 'postgres',
+  ADD COLUMN IF NOT EXISTS sqlite_path text,
+  ADD COLUMN IF NOT EXISTS connection_uri_encrypted text;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'database_connections'::regclass
+      AND conname = 'database_connections_engine_check'
+  ) THEN
+    ALTER TABLE database_connections
+      ADD CONSTRAINT database_connections_engine_check
+      CHECK (engine IN ('postgres', 'mysql', 'sqlserver', 'sqlite', 'mongodb'));
+  END IF;
+END
+$$;
 CREATE INDEX IF NOT EXISTS database_connections_owner_idx
   ON database_connections (owner_id, created_at DESC);
 
@@ -49,8 +70,12 @@ CREATE TABLE IF NOT EXISTS qa_history (
   answer text NOT NULL,
   evidence jsonb NOT NULL DEFAULT '[]',
   model text,
+  answer_mode text CHECK (answer_mode IN ('data', 'schema', 'clarify')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE qa_history
+  ADD COLUMN IF NOT EXISTS answer_mode text
+    CHECK (answer_mode IN ('data', 'schema', 'clarify'));
 CREATE INDEX IF NOT EXISTS qa_history_conv_idx
   ON qa_history (conversation_id, id);
 
@@ -59,11 +84,13 @@ CREATE TABLE IF NOT EXISTS models (
   label text NOT NULL,
   model_id text NOT NULL UNIQUE,
   base_url text,
+  api_key_encrypted text,
   is_enabled boolean NOT NULL DEFAULT true,
   is_default boolean NOT NULL DEFAULT false,
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE models ADD COLUMN IF NOT EXISTS api_key_encrypted text;
 CREATE UNIQUE INDEX IF NOT EXISTS models_single_default
   ON models ((true)) WHERE is_default;
 

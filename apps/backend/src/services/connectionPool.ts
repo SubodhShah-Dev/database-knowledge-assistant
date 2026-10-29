@@ -4,12 +4,15 @@ import { assertHostAllowed, createGuardedSocket } from './hostGuard';
 export type SslMode = 'disable' | 'allow' | 'prefer' | 'require' | 'verify-ca' | 'verify-full';
 
 export type TargetConfig = {
+  engine?: 'postgres' | 'mysql' | 'sqlserver' | 'sqlite' | 'mongodb';
   host: string;
   port: number;
   database: string;
   user: string;
   password: string;
   sslMode: SslMode;
+  sqlitePath?: string;
+  connectionUri?: string;
 };
 
 function sslOption(mode: SslMode) {
@@ -33,16 +36,31 @@ function toPgConfig(config: TargetConfig) {
 }
 
 export function safeConnectionError(error: any): string {
-  if (error?.code === 'HOST_BLOCKED') {
+  if (error?.code === 'TARGET_CONFIGURATION') {
+    return error.message || 'The database connection configuration is invalid.';
+  }
+  const code = error?.code ?? error?.cause?.code;
+  if (code === 'HOST_BLOCKED') {
     return error?.message || 'This database host is not allowed.';
   }
-  if (error?.code === 'HOST_UNRESOLVED') return 'The database host could not be found.';
-  if (error?.code === 'ECONNREFUSED') return 'The database refused the connection. Check the host and port.';
-  if (error?.code === 'ENOTFOUND') return 'The database host could not be found.';
-  if (error?.code === 'ETIMEDOUT') return 'The database connection timed out.';
-  if (error?.code === '28P01') return 'The database rejected the username or password.';
-  if (error?.code === '3D000') return 'The database does not exist.';
-  if (error?.code === '28000') return 'The database rejected this role.';
+  if (code === 'HOST_UNRESOLVED' || code === 'ENOTFOUND') return 'The database host could not be found.';
+  if (['ECONNREFUSED', 'ESOCKET'].includes(code)) {
+    return 'The database refused the connection. Check the host and port.';
+  }
+  if (['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ETIMEOUT'].includes(code)) {
+    return 'The database connection timed out.';
+  }
+  if (
+    ['28P01', 'ER_ACCESS_DENIED_ERROR', 'ELOGIN', 'AuthenticationFailed'].includes(String(code)) ||
+    code === 18
+  ) {
+    return 'The database rejected the username or password.';
+  }
+  if (code === '3D000' || code === 'ER_BAD_DB_ERROR') return 'The database does not exist.';
+  if (code === '28000') return 'The database rejected this role.';
+  if (String(code).startsWith('SQLITE_CANTOPEN')) {
+    return 'The SQLite database file could not be opened. Check the path and API file permissions.';
+  }
   return 'Could not connect to the database. Check the connection details.';
 }
 
