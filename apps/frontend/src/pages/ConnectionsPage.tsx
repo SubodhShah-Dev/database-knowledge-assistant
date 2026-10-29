@@ -107,8 +107,9 @@ export default function ConnectionsPage() {
           <p className="eyebrow">Database connections</p>
           <h1>Connections</h1>
           <p>
-            Save encrypted PostgreSQL connections. Credentials are never returned to the browser;
-            queries always run through a read-only transaction.
+            Save encrypted PostgreSQL connections from anywhere the API can reach. Credentials are
+            never returned to the browser; queries always run through a read-only transaction.
+            Link-local and cloud metadata hosts are blocked.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setAdding(true)}>

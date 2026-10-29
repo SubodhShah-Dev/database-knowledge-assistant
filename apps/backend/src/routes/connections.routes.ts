@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { decryptSecret, encryptSecret } from '../services/connectionCrypto';
+import { assertHostAllowed, HostGuardError } from '../services/hostGuard';
 import { getSchemaSnapshot, invalidateSchemaCache } from '../services/introspection';
 import { toTargetConfig, type OwnedConnection } from '../services/connectionAccess';
 import {
@@ -72,6 +73,7 @@ connectionsRouter.post('/', requireAuth, async (req, res, next) => {
   try {
     const input = parseInput(req.body);
     if ('error' in input) return res.status(400).json({ error: input.error });
+    await assertHostAllowed(input.host);
 
     const max = Number(process.env.MAX_CONNECTIONS_PER_USER || 20);
     const count = await pool.query(
@@ -100,6 +102,9 @@ connectionsRouter.post('/', requireAuth, async (req, res, next) => {
     );
     res.status(201).json(rows[0]);
   } catch (error: any) {
+    if (error instanceof HostGuardError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     if (error.code === '23505') {
       return res.status(409).json({ error: 'You already have a connection with that name.' });
     }
@@ -157,6 +162,7 @@ connectionsRouter.patch('/:id', requireAuth, async (req, res, next) => {
 
     const input = parseInput(req.body, decryptSecret(existing.rows[0].password_encrypted));
     if ('error' in input) return res.status(400).json({ error: input.error });
+    await assertHostAllowed(input.host);
 
     const { rows } = await pool.query(
       `UPDATE database_connections
@@ -180,6 +186,9 @@ connectionsRouter.patch('/:id', requireAuth, async (req, res, next) => {
     invalidateSchemaCache(String(req.params.id));
     res.json(rows[0]);
   } catch (error: any) {
+    if (error instanceof HostGuardError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     if (error.code === '23505') {
       return res.status(409).json({ error: 'You already have a connection with that name.' });
     }
