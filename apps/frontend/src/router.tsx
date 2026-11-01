@@ -7,6 +7,9 @@ import ConnectionsPage from './pages/ConnectionsPage';
 import ChatPage from './pages/ChatPage';
 import SessionsPage from './pages/SessionsPage';
 import AdminModelsPage from './pages/AdminModelsPage';
+import UserApiKeysPage from './pages/UserApiKeysPage';
+import UserModelsPage from './pages/UserModelsPage';
+import SettingsPage from './pages/SettingsPage';
 
 function RequireAuth() {
   const { token } = useAuth();
@@ -30,6 +33,9 @@ export default function AppRouter() {
           <Route path="connections" element={<ConnectionsPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="c/:id" element={<ChatPage />} />
+          <Route path="settings/api-keys" element={<UserApiKeysPage />} />
+          <Route path="settings/models" element={<UserModelsPage />} />
+          <Route path="settings/profile" element={<SettingsPage />} />
           <Route element={<RequireAdmin />}>
             <Route path="admin/models" element={<AdminModelsPage />} />
           </Route>

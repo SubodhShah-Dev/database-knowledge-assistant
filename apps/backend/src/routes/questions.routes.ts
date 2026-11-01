@@ -250,7 +250,7 @@ questionsRouter.post('/', requireAuth, async (req, res, next) => {
     const engine = connection.engine ?? 'postgres';
     const schemaBlock = buildSchemaBlock(snapshot, selectedTables);
     const history = await loadHistory(conversation.id, req.user!.id);
-    const modelConfig = await resolveModelConfig({ modelId: conversation.model_id });
+    const modelConfig = await resolveModelConfig({ modelId: conversation.model_id, userId: req.user!.id });
     const requestedModel = modelConfig?.model ?? llmModel();
     const recordCountQuestion = isTableRecordCountQuestion(question);
 

@@ -12,10 +12,15 @@ import type {
   DonePayload,
   Evidence,
   Model,
+  PasswordChange,
+  ProfileUpdate,
   SchemaSnapshot,
   StreamStatus,
   TableRef,
-  User
+  User,
+  UserApiKey,
+  UserModel,
+  UserModelInput
 } from '../types';
 
 const API = import.meta.env.VITE_API_URL ?? '';
@@ -207,6 +212,69 @@ export function updateAdminModel(id: string, input: AdminModelInput): Promise<Ad
 
 export function deleteAdminModel(id: string): Promise<{ ok: true }> {
   return apiFetch<{ ok: true }>(`/api/models/${id}`, { method: 'DELETE' });
+}
+
+export function listUserApiKeys(): Promise<string[]> {
+  return apiFetch<string[]>('/api/user/api-keys');
+}
+
+export function listUserApiKeysWithModels(): Promise<UserApiKey[]> {
+  return apiFetch<UserApiKey[]>('/api/user/api-keys/with-models');
+}
+
+export function createUserApiKey(modelId: string, apiKey: string): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>('/api/user/api-keys', {
+    method: 'POST',
+    body: JSON.stringify({ modelId, apiKey })
+  });
+}
+
+export function deleteUserApiKey(modelId: string): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>(`/api/user/api-keys/${modelId}`, { method: 'DELETE' });
+}
+
+export function listUserModels(): Promise<UserModel[]> {
+  return apiFetch<UserModel[]>('/api/user/models');
+}
+
+export function listAllUserModels(): Promise<UserModel[]> {
+  return apiFetch<UserModel[]>('/api/user/models/all');
+}
+
+export function createUserModel(input: UserModelInput): Promise<UserModel> {
+  return apiFetch<UserModel>('/api/user/models', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateUserModel(id: string, input: UserModelInput): Promise<UserModel> {
+  return apiFetch<UserModel>(`/api/user/models/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteUserModel(id: string): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>(`/api/user/models/${id}`, { method: 'DELETE' });
+}
+
+export function getUserProfile(): Promise<User> {
+  return apiFetch<User>('/api/user/profile');
+}
+
+export function updateUserProfile(data: ProfileUpdate): Promise<User> {
+  return apiFetch<User>('/api/user/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+}
+
+export function changePassword(data: PasswordChange): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>('/api/user/profile/password', {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
 }
 
 type StreamHandlers = {

@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
   email text NOT NULL UNIQUE,
   password_hash text NOT NULL,
   role text NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  first_name text,
+  last_name text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -136,6 +138,34 @@ CREATE TABLE IF NOT EXISTS recovery_keys (
   rotated_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS recovery_keys_user_idx ON recovery_keys (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_api_keys (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  model_id uuid NOT NULL REFERENCES models(id) ON DELETE CASCADE,
+  api_key_encrypted text NOT NULL,
+  encryption_key_version integer NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, model_id)
+);
+CREATE INDEX IF NOT EXISTS user_api_keys_user_idx ON user_api_keys (user_id);
+
+CREATE TABLE IF NOT EXISTS user_models (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label text NOT NULL,
+  model_id text NOT NULL,
+  base_url text NOT NULL,
+  api_key_encrypted text NOT NULL,
+  encryption_key_version integer NOT NULL DEFAULT 1,
+  is_enabled boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS user_models_user_idx ON user_models (user_id, sort_order, label);
+CREATE UNIQUE INDEX IF NOT EXISTS user_models_user_label ON user_models (user_id, label);
 
 CREATE TABLE IF NOT EXISTS app_settings (
   key text PRIMARY KEY,

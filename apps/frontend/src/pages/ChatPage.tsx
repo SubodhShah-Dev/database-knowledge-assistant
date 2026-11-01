@@ -4,6 +4,8 @@ import {
   ApiError,
   getConversation,
   listModels,
+  listUserApiKeys,
+  listUserModels,
   streamQuestion,
   updateConversation
 } from '../api/client';
@@ -15,7 +17,8 @@ import type {
   Model,
   StreamStatus,
   Turn,
-  UsedAnswerMode
+  UsedAnswerMode,
+  UserModel
 } from '../types';
 import EvidencePanel, { FailedQuery } from '../components/EvidencePanel';
 import MarkdownText from '../components/MarkdownText';
@@ -27,6 +30,7 @@ import {
   IconClose,
   IconCopy,
   IconEdit,
+  IconKey,
   IconLink,
   IconLock,
   IconPlus,
@@ -111,9 +115,11 @@ export default function ChatPage() {
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [models, setModels] = useState<Model[]>([]);
+  const [userModels, setUserModels] = useState<UserModel[]>([]);
   const [modelId, setModelId] = useState('');
   const [modelSaving, setModelSaving] = useState(false);
   const [modelError, setModelError] = useState('');
+  const [userApiKeyModelIds, setUserApiKeyModelIds] = useState<string[]>([]);
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [titleSaving, setTitleSaving] = useState(false);
@@ -141,13 +147,20 @@ export default function ChatPage() {
     setDraft('');
     setDrawer(null);
 
-    Promise.all([getConversation(id), listModels().catch(() => [])])
-      .then(([detail, nextModels]) => {
+    Promise.all([
+      getConversation(id),
+      listModels().catch(() => []),
+      listUserApiKeys().catch(() => []),
+      listUserModels().catch(() => [])
+    ])
+      .then(([detail, nextModels, userKeyModelIds, userModels]) => {
         if (cancelled) return;
         setConversation(detail);
         setTurns(detail.turns);
         setModels(nextModels);
+        setUserModels(userModels);
         setModelId(detail.modelId ?? '');
+        setUserApiKeyModelIds(userKeyModelIds);
         stickToBottom.current = true;
       })
       .catch(err => {
@@ -563,7 +576,7 @@ export default function ChatPage() {
           </div>
 
             <div className="chat-actions">
-              {models.length > 0 ? (
+              {models.length > 0 || userModels.length > 0 ? (
                 <label className="model-picker">
                   <span>Model</span>
                   <select
@@ -573,15 +586,39 @@ export default function ChatPage() {
                     aria-label="Answer model"
                   >
                     <option value="">Auto (recommended)</option>
-                    {models.map(model => (
-                      <option key={model.id} value={model.id}>
-                        {model.label}
-                      </option>
-                    ))}
+                    {userModels.length > 0 && (
+                      <optgroup label="Your providers">
+                        {userModels.map(model => (
+                          <option key={model.id} value={model.id}>
+                            {model.label} (your provider)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {models.length > 0 && (
+                      <optgroup label="Server providers">
+                        {models.map(model => (
+                          <option key={model.id} value={model.id}>
+                            {model.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </label>
               ) : (
                 <span className="badge">Auto · {shortModelName(activeModel?.model_id)}</span>
+              )}
+              {modelId && (userApiKeyModelIds.includes(modelId) || userModels.some(m => m.id === modelId)) && (
+                <Link
+                  to="/settings/models"
+                  className="btn btn-ghost btn-sm api-key-indicator"
+                  title="Using your provider or API key for this model"
+                  aria-label="Manage your models"
+                >
+                  <IconKey size={14} />
+                  <span>Your provider</span>
+                </Link>
               )}
               <button className="btn btn-ghost btn-sm" onClick={() => setDrawer('schema')}>
                 <IconTable size={15} /> Tables

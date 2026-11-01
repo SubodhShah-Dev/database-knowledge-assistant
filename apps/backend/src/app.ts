@@ -10,6 +10,9 @@ import { connectionsRouter } from './routes/connections.routes';
 import { conversationsRouter } from './routes/conversations.routes';
 import { questionsRouter } from './routes/questions.routes';
 import { recoveryRouter } from './routes/recovery.routes';
+import { userApiKeysRouter } from './routes/userApiKeys.routes';
+import { userModelsRouter } from './routes/userModels.routes';
+import { profileRouter } from './routes/profile.routes';
 import { LlmUnavailableError } from './services/llm';
 
 export const app = express();
@@ -41,6 +44,9 @@ app.use('/api/connections', connectionsRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/questions', questionsRouter);
 app.use('/api/recovery', recoveryRouter);
+app.use('/api/user/api-keys', userApiKeysRouter);
+app.use('/api/user/models', userModelsRouter);
+app.use('/api/user/profile', profileRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (res.headersSent) return next(err);

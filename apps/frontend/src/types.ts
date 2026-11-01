@@ -2,6 +2,19 @@ export type User = {
   id: string;
   email: string;
   role: 'user' | 'admin';
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+export type ProfileUpdate = {
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+export type PasswordChange = {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
 };
 
 export type AuthResponse = {
@@ -100,6 +113,33 @@ export type AdminModelInput = {
   baseUrl: string;
   apiKey?: string;
   isDefault: boolean;
+  sortOrder: number;
+};
+
+export type UserApiKey = {
+  modelId: string;
+  label: string;
+  model_id: string;
+  base_url: string;
+  hasKey: boolean;
+};
+
+export type UserModel = {
+  id: string;
+  label: string;
+  model_id: string;
+  base_url: string;
+  is_enabled: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
+export type UserModelInput = {
+  label: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  isEnabled: boolean;
   sortOrder: number;
 };
 

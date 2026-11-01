@@ -52,7 +52,7 @@ authRouter.post('/signup', async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      'INSERT INTO users(email, password_hash) VALUES ($1, $2) RETURNING id, email, role',
+      'INSERT INTO users(email, password_hash) VALUES ($1, $2) RETURNING id, email, role, first_name, last_name',
       [email, passwordHash]
     );
 
@@ -71,7 +71,7 @@ authRouter.post('/login', async (req, res, next) => {
     const password = String(req.body.password || '');
 
     const { rows } = await pool.query(
-      'SELECT id, email, role, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, role, password_hash, first_name, last_name FROM users WHERE email = $1',
       [email]
     );
 
