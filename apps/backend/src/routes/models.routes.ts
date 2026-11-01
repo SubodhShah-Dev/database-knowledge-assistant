@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
-import { encryptSecret } from '../services/connectionCrypto';
+import { encryptSecret, currentKeyVersion } from '../services/connectionCrypto';
 
 export const modelsRouter = Router();
 
@@ -129,13 +129,14 @@ modelsRouter.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     await client.query('BEGIN');
     if (input.isDefault) await client.query('UPDATE models SET is_default = false');
+    const keyVer = currentKeyVersion();
     const { rows } = await client.query<AdminModelRow>(
       `INSERT INTO models
-         (label, model_id, base_url, api_key_encrypted, is_enabled, is_default, sort_order)
-       VALUES ($1, $2, $3, $4, true, $5, $6)
+         (label, model_id, base_url, api_key_encrypted, encryption_key_version, is_enabled, is_default, sort_order)
+       VALUES ($1, $2, $3, $4, $5, true, $6, $7)
        RETURNING id, label, model_id, base_url, is_enabled, is_default, sort_order,
                  api_key_encrypted IS NOT NULL AS has_stored_api_key`,
-      [input.label, input.modelId, input.baseUrl, input.apiKey ? encryptSecret(input.apiKey) : null, input.isDefault, input.sortOrder]
+      [input.label, input.modelId, input.baseUrl, input.apiKey ? encryptSecret(input.apiKey) : null, keyVer, input.isDefault, input.sortOrder]
     );
     await client.query('COMMIT');
     res.status(201).json(toAdminModel(rows[0]));
@@ -174,15 +175,17 @@ modelsRouter.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
     if (input.isDefault) {
       await client.query('UPDATE models SET is_default = false WHERE id <> $1', [req.params.id]);
     }
+    const keyVer = currentKeyVersion();
     const { rows } = await client.query<AdminModelRow>(
       `UPDATE models
        SET label = $2, model_id = $3, base_url = $4,
            api_key_encrypted = CASE WHEN $5 <> '' THEN $6 ELSE api_key_encrypted END,
-           is_default = $7, sort_order = $8
+           encryption_key_version = CASE WHEN $5 <> '' THEN $7 ELSE encryption_key_version END,
+           is_default = $8, sort_order = $9
        WHERE id = $1
        RETURNING id, label, model_id, base_url, is_enabled, is_default, sort_order,
                  api_key_encrypted IS NOT NULL AS has_stored_api_key`,
-      [req.params.id, input.label, input.modelId, input.baseUrl, input.apiKey, input.apiKey ? encryptSecret(input.apiKey) : null, input.isDefault, input.sortOrder]
+      [req.params.id, input.label, input.modelId, input.baseUrl, input.apiKey, input.apiKey ? encryptSecret(input.apiKey) : null, keyVer, input.isDefault, input.sortOrder]
     );
     if (!rows[0]) {
       await client.query('ROLLBACK');

@@ -7,6 +7,7 @@ const blocked = new BlockList();
 blocked.addSubnet('169.254.0.0', 16, 'ipv4');
 blocked.addSubnet('224.0.0.0', 4, 'ipv4');
 blocked.addSubnet('240.0.0.0', 4, 'ipv4');
+blocked.addSubnet('100.64.0.0', 10, 'ipv4');
 blocked.addAddress('0.0.0.0', 'ipv4');
 blocked.addAddress('100.100.100.200', 'ipv4');
 blocked.addAddress('192.0.0.192', 'ipv4');

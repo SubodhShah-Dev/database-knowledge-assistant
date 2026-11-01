@@ -4,7 +4,7 @@ import { getPool, type SslMode, type TargetConfig } from './connectionPool';
 import { getSchemaSnapshot, type SchemaSnapshot } from './introspection';
 import { getDatabaseSchema } from './databaseAdapters';
 
-export type DatabaseEngine = 'postgres' | 'mysql' | 'sqlserver' | 'sqlite' | 'mongodb';
+export type DatabaseEngine = 'postgres' | 'mysql' | 'mongodb';
 
 export type OwnedConnection = {
   id: string;
@@ -14,7 +14,6 @@ export type OwnedConnection = {
   host: string;
   port: number;
   database_name: string;
-  sqlite_path: string | null;
   connection_uri_encrypted: string | null;
   username: string;
   password_encrypted: string;
@@ -43,7 +42,6 @@ export function toTargetConfig(row: OwnedConnection): TargetConfig {
     user: row.username,
     password: decryptSecret(row.password_encrypted),
     sslMode: row.ssl_mode,
-    sqlitePath: row.sqlite_path ?? undefined,
     connectionUri: row.connection_uri_encrypted
       ? decryptSecret(row.connection_uri_encrypted)
       : undefined

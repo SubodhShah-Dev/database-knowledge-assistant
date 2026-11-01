@@ -119,10 +119,10 @@ Administrators can configure OpenAI-compatible endpoints and model API keys unde
 
 The compose stack exposes two databases:
 
-| Service | Host port | Database | Role |
-| --- | --- | --- | --- |
-| `app-postgres` | `5434` | `database_knowledge_assistant` | `app_user` |
-| `demo-postgres` | `5435` | `demo_analytics` | `demo_admin` |
+| Service         | Host port | Database                       | Role         |
+| --------------- | --------- | ------------------------------ | ------------ |
+| `app-postgres`  | `5434`    | `database_knowledge_assistant` | `app_user`   |
+| `demo-postgres` | `5435`    | `demo_analytics`               | `demo_admin` |
 
 Use this connection in the UI:
 
@@ -135,15 +135,6 @@ User:     demo_reader
 Password: demo_reader_password
 SSL:      disable
 ```
-
-Seeded app users:
-
-| User | Password | Role |
-| --- | --- | --- |
-| `demo@example.com` | `DemoPassword123!` | user |
-| `admin@example.com` | `AdminPassword123!` | admin |
-
-The demo target contains `customers`, `products`, `orders`, and `order_items` with foreign keys and sample rows.
 
 ## Safety model
 
@@ -163,22 +154,22 @@ The demo target contains `customers`, `products`, `orders`, and `order_items` wi
 
 ## Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `npm run setup` | Start Docker databases, initialize and seed the app database, then run API and web app together |
-| `npm run dev` | Run API and web app together |
-| `npm run dev:api` | Run only the API |
-| `npm run dev:web` | Run only the Vite app |
-| `npm run docker:up` | Start Docker Compose services and wait for health checks |
-| `npm run docker:down` | Stop Docker Compose services without removing database volumes |
-| `npm run docker:ps` | Show Docker Compose service status |
-| `npm run docker:logs` | Follow Docker Compose service logs |
-| `npm run db:setup` | Apply the app database schema and seed demo data |
-| `npm run typecheck` | Typecheck both workspaces |
-| `npm test` | Backend Jest/Supertest suite |
-| `npm run test:e2e` | Playwright browser journey |
-| `npm run build` | Build backend and frontend |
-| `npm run seed -w apps/backend` | Seed demo users and the default model |
+| Command                        | Purpose                                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `npm run setup`                | Start Docker databases, initialize and seed the app database, then run API and web app together |
+| `npm run dev`                  | Run API and web app together                                                                    |
+| `npm run dev:api`              | Run only the API                                                                                |
+| `npm run dev:web`              | Run only the Vite app                                                                           |
+| `npm run docker:up`            | Start Docker Compose services and wait for health checks                                        |
+| `npm run docker:down`          | Stop Docker Compose services without removing database volumes                                  |
+| `npm run docker:ps`            | Show Docker Compose service status                                                              |
+| `npm run docker:logs`          | Follow Docker Compose service logs                                                              |
+| `npm run db:setup`             | Apply the app database schema and seed demo data                                                |
+| `npm run typecheck`            | Typecheck both workspaces                                                                       |
+| `npm test`                     | Backend Jest/Supertest suite                                                                    |
+| `npm run test:e2e`             | Playwright browser journey                                                                      |
+| `npm run build`                | Build backend and frontend                                                                      |
+| `npm run seed -w apps/backend` | Seed demo users and the default model                                                           |
 
 ## Tests
 
@@ -205,28 +196,28 @@ The E2E run temporarily points the seeded default model at the local stub and re
 
 Full request/response details, responsibilities, and client call sites live in [docs/apis/README.md](docs/apis/README.md).
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/health` | Liveness check |
-| `POST` | `/api/auth/signup` | Create an account |
-| `POST` | `/api/auth/login` | Sign in |
-| `GET` | `/api/models` | List enabled answer models |
-| `GET` | `/api/models/admin` | List provider configurations (admin) |
-| `POST` | `/api/models` | Create a provider configuration (admin) |
-| `PUT/DELETE` | `/api/models/:id` | Update or delete a provider configuration (admin) |
-| `GET/POST` | `/api/connections` | List or create connections |
-| `GET/PATCH/DELETE` | `/api/connections/:id` | Read, update, or delete a connection |
-| `POST` | `/api/connections/:id/test` | Test connectivity |
-| `GET` | `/api/connections/:id/schema` | Read the cached schema |
-| `GET/POST` | `/api/conversations` | List or create sessions |
-| `GET/PATCH/DELETE` | `/api/conversations/:id` | Read, edit scope/title/model, or delete |
-| `POST` | `/api/questions` | Ask a question; responds with SSE |
-| `GET` | `/api/recovery/status` | Recovery configuration and record status |
-| `POST` | `/api/recovery/setup` | Create a recovery record (admin) |
-| `POST` | `/api/recovery/validate` | Validate a recovery passphrase |
-| `POST` | `/api/recovery/rotate` | Rotate the recovery passphrase (admin) |
+| Method             | Path                          | Purpose                                           |
+| ------------------ | ----------------------------- | ------------------------------------------------- |
+| `GET`              | `/api/health`                 | Liveness check                                    |
+| `POST`             | `/api/auth/signup`            | Create an account                                 |
+| `POST`             | `/api/auth/login`             | Sign in                                           |
+| `GET`              | `/api/models`                 | List enabled answer models                        |
+| `GET`              | `/api/models/admin`           | List provider configurations (admin)              |
+| `POST`             | `/api/models`                 | Create a provider configuration (admin)           |
+| `PUT/DELETE`       | `/api/models/:id`             | Update or delete a provider configuration (admin) |
+| `GET/POST`         | `/api/connections`            | List or create connections                        |
+| `GET/PATCH/DELETE` | `/api/connections/:id`        | Read, update, or delete a connection              |
+| `POST`             | `/api/connections/:id/test`   | Test connectivity                                 |
+| `GET`              | `/api/connections/:id/schema` | Read the cached schema                            |
+| `GET/POST`         | `/api/conversations`          | List or create sessions                           |
+| `GET/PATCH/DELETE` | `/api/conversations/:id`      | Read, edit scope/title/model, or delete           |
+| `POST`             | `/api/questions`              | Ask a question; responds with SSE                 |
+| `GET`              | `/api/recovery/status`        | Recovery configuration and record status          |
+| `POST`             | `/api/recovery/setup`         | Create a recovery record (admin)                  |
+| `POST`             | `/api/recovery/validate`      | Validate a recovery passphrase                    |
+| `POST`             | `/api/recovery/rotate`        | Rotate the recovery passphrase (admin)            |
 
-SSE event order is `status` -> `evidence` -> `token`* -> `done`. Errors after the stream starts arrive as `error` events; validation and provider failures before the stream return JSON.
+SSE event order is `status` -> `evidence` -> `token`\* -> `done`. Errors after the stream starts arrive as `error` events; validation and provider failures before the stream return JSON.
 
 Database schemas, query locations, and the demo dataset are documented in [docs/databases/README.md](docs/databases/README.md). The original build narrative lives in the [Roadmap & Developer Guide](docs/database-knowledge-assistant/Database%20Knowledge%20Assistant%20%E2%80%94%20Roadmap%20&%20Developer%20Guide.md) and [Implementation Walkthrough](docs/database-knowledge-assistant/Implementation_Walkthrough.md).
 
@@ -265,12 +256,12 @@ apps/
 
 ### Recommended Stack
 
-| Component | Platform | Free Tier |
-|-----------|----------|-----------|
-| Frontend | **Vercel** | Unlimited personal projects, custom domains, SSL |
-| Backend | **Railway** | $5/month credit (covers small apps) or **Render** (750 hrs/mo) |
-| Database | **Neon** | 0.5 GB Postgres, branching, autoscaling |
-| LLM | **Groq** | Free tier: 14,400 req/day |
+| Component | Platform    | Free Tier                                                      |
+| --------- | ----------- | -------------------------------------------------------------- |
+| Frontend  | **Vercel**  | Unlimited personal projects, custom domains, SSL               |
+| Backend   | **Railway** | $5/month credit (covers small apps) or **Render** (750 hrs/mo) |
+| Database  | **Neon**    | 0.5 GB Postgres, branching, autoscaling                        |
+| LLM       | **Groq**    | Free tier: 14,400 req/day                                      |
 
 ### Quick Deploy
 
@@ -302,6 +293,7 @@ apps/
 See `.env.production.example` for all required production variables. **Never commit real secrets.**
 
 Generate secrets locally:
+
 ```bash
 # JWT_SECRET (32+ chars)
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"

@@ -11,12 +11,11 @@ export type AuthResponse = {
 
 export type Connection = {
   id: string;
-  engine: 'postgres' | 'mysql' | 'sqlserver' | 'sqlite' | 'mongodb';
+  engine: 'postgres' | 'mysql' | 'mongodb';
   name: string;
   host: string;
   port: number;
   database_name: string;
-  sqlite_path: string | null;
   username: string;
   ssl_mode: string;
   has_password: boolean;
@@ -34,7 +33,6 @@ export type ConnectionInput = {
   username?: string;
   password?: string;
   sslMode?: string;
-  sqlitePath?: string;
   connectionUri?: string;
 };
 

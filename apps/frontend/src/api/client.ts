@@ -78,7 +78,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API}${path}`, { ...options, headers });
+  const response = await fetch(`${API}${path}`, { ...options, headers, credentials: 'include' });
   const data = await response.json().catch(() => null);
   const isAuthRoute = path.startsWith('/api/auth/');
 
@@ -105,6 +105,15 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
     method: 'POST',
     body: JSON.stringify({ email, password })
   });
+}
+
+export async function signOut(): Promise<void> {
+  try {
+    await apiFetch('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // Ignore logout errors; local state is cleared regardless.
+  }
+  clearAuth();
 }
 
 export function listConnections(): Promise<Connection[]> {

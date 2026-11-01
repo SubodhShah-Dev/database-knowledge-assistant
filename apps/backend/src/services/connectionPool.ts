@@ -4,14 +4,13 @@ import { assertHostAllowed, createGuardedSocket } from './hostGuard';
 export type SslMode = 'disable' | 'allow' | 'prefer' | 'require' | 'verify-ca' | 'verify-full';
 
 export type TargetConfig = {
-  engine?: 'postgres' | 'mysql' | 'sqlserver' | 'sqlite' | 'mongodb';
+  engine?: 'postgres' | 'mysql' | 'mongodb';
   host: string;
   port: number;
   database: string;
   user: string;
   password: string;
   sslMode: SslMode;
-  sqlitePath?: string;
   connectionUri?: string;
 };
 
@@ -58,9 +57,6 @@ export function safeConnectionError(error: any): string {
   }
   if (code === '3D000' || code === 'ER_BAD_DB_ERROR') return 'The database does not exist.';
   if (code === '28000') return 'The database rejected this role.';
-  if (String(code).startsWith('SQLITE_CANTOPEN')) {
-    return 'The SQLite database file could not be opened. Check the path and API file permissions.';
-  }
   return 'Could not connect to the database. Check the connection details.';
 }
 

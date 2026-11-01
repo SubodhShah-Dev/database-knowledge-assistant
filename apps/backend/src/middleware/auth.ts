@@ -14,7 +14,8 @@ declare global {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const token =
+    authHeader.startsWith('Bearer ') ? authHeader.slice(7) : readTokenCookie(req) || '';
 
   if (!token) {
     return res.status(401).json({ error: 'Authentication required.' });
@@ -37,4 +38,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token.' });
   }
+}
+
+function readTokenCookie(req: Request): string | null {
+  const cookieHeader = req.headers.cookie || '';
+  const match = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
+  return match ? match[1] : null;
 }

@@ -73,4 +73,14 @@ describe('sql guard', () => {
       /outside this session/i
     );
   });
+
+  test('rejects DDL and other destructive statements', () => {
+    expectRejected('DROP TABLE orders', /Only SELECT/i);
+    expectRejected('DROP INDEX orders_idx', /Only SELECT/i);
+    expectRejected('TRUNCATE TABLE orders', /Only SELECT/i);
+    expectRejected('CREATE TABLE foo (id int)', /Only SELECT/i);
+    expectRejected('ALTER TABLE orders ADD COLUMN x int', /Only SELECT/i);
+    expectRejected('COPY orders TO STDOUT', /Only SELECT/i);
+    expectRejected("SET statement_timeout = '0'", /Only SELECT/i);
+  });
 });

@@ -41,7 +41,7 @@ function planFor(question) {
   }
   return {
     mode: 'data',
-    sql: 'SELECT COUNT(*)::int AS order_count FROM public.orders'
+    query: 'SELECT COUNT(*)::int AS order_count FROM public.orders'
   };
 }
 

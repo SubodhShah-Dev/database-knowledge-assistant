@@ -1,8 +1,11 @@
 import { Router } from 'express';
-import path from 'node:path';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
-import { decryptSecret, encryptSecret } from '../services/connectionCrypto';
+import {
+  decryptSecret,
+  encryptSecret,
+  currentKeyVersion
+} from '../services/connectionCrypto';
 import { HostGuardError } from '../services/hostGuard';
 import { invalidateSchemaCache } from '../services/introspection';
 import {
@@ -24,7 +27,7 @@ import type { SslMode } from '../services/connectionPool';
 export const connectionsRouter = Router();
 
 const SAFE_COLUMNS = `
-  id, engine, name, host, port, database_name, sqlite_path, username, ssl_mode,
+  id, engine, name, host, port, database_name, username, ssl_mode,
   (password_encrypted IS NOT NULL) AS has_password,
   EXISTS (
     SELECT 1 FROM conversations c
@@ -34,7 +37,7 @@ const SAFE_COLUMNS = `
 `;
 
 const SSL_MODES: SslMode[] = ['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full'];
-const DATABASE_ENGINES: DatabaseEngine[] = ['postgres', 'mysql', 'sqlserver', 'sqlite', 'mongodb'];
+const DATABASE_ENGINES: DatabaseEngine[] = ['postgres', 'mysql', 'mongodb'];
 
 type ConnectionInput = {
   engine: DatabaseEngine;
@@ -42,7 +45,6 @@ type ConnectionInput = {
   host: string;
   port: number;
   database: string;
-  sqlitePath: string | null;
   connectionUri: string | null;
   username: string;
   password: string;
@@ -53,7 +55,7 @@ function parseInput(body: any, existing?: OwnedConnection): ConnectionInput | { 
   const engine = String(body.engine ?? existing?.engine ?? 'postgres') as DatabaseEngine;
   const name = String(body.name || '').trim();
   let host = String(body.host ?? existing?.host ?? '').trim();
-  let port = Number(body.port ?? existing?.port ?? (engine === 'sqlserver' ? 1433 : engine === 'mysql' ? 3306 : 5432));
+  let port = Number(body.port ?? existing?.port ?? (engine === 'mysql' ? 3306 : 5432));
   let database = String(body.database ?? body.databaseName ?? existing?.database_name ?? '').trim();
   let username = String(body.username ?? body.user ?? existing?.username ?? '').trim();
   const engineChanged = Boolean(existing && engine !== existing.engine);
@@ -61,20 +63,12 @@ function parseInput(body: any, existing?: OwnedConnection): ConnectionInput | { 
     ? existing && !engineChanged ? decryptSecret(existing.password_encrypted) : ''
     : String(body.password);
   const sslMode = String(body.sslMode ?? body.ssl_mode ?? existing?.ssl_mode ?? 'prefer') as SslMode;
-  let sqlitePath: string | null = null;
   let connectionUri: string | null = null;
 
   if (!name || name.length > 80) return { error: 'Connection name is required (max 80 characters).' };
   if (!DATABASE_ENGINES.includes(engine)) return { error: 'Unsupported database type.' };
 
-  if (engine === 'sqlite') {
-    sqlitePath = String(body.sqlitePath ?? existing?.sqlite_path ?? '').trim();
-    if (!sqlitePath || sqlitePath.length > 1024) return { error: 'A SQLite database file path is required.' };
-    host = 'local';
-    port = 1;
-    username = 'local';
-    database = database || path.basename(sqlitePath);
-  } else if (engine === 'mongodb') {
+  if (engine === 'mongodb') {
     const rawUri = body.connectionUri === undefined || body.connectionUri === ''
       ? !engineChanged && existing?.connection_uri_encrypted
         ? decryptSecret(existing.connection_uri_encrypted)
@@ -102,7 +96,7 @@ function parseInput(body: any, existing?: OwnedConnection): ConnectionInput | { 
   if (!Number.isInteger(port) || port < 1 || port > 65535) return { error: 'Port must be between 1 and 65535.' };
   if (!SSL_MODES.includes(sslMode)) return { error: 'Invalid SSL mode.' };
 
-  return { engine, name, host, port, database, sqlitePath, connectionUri, username, password, sslMode };
+  return { engine, name, host, port, database, connectionUri, username, password, sslMode };
 }
 
 function targetConfig(input: ConnectionInput) {
@@ -114,7 +108,6 @@ function targetConfig(input: ConnectionInput) {
     user: input.username,
     password: input.password,
     sslMode: input.sslMode,
-    sqlitePath: input.sqlitePath ?? undefined,
     connectionUri: input.connectionUri ?? undefined
   };
 }
@@ -149,10 +142,11 @@ connectionsRouter.post('/', requireAuth, async (req, res, next) => {
       return res.status(422).json({ error: `You can save at most ${max} connections.` });
     }
 
+    const keyVer = currentKeyVersion();
     const { rows } = await pool.query(
       `INSERT INTO database_connections
-         (owner_id, engine, name, host, port, database_name, sqlite_path,
-          connection_uri_encrypted, username, password_encrypted, ssl_mode)
+         (owner_id, engine, name, host, port, database_name,
+          connection_uri_encrypted, username, password_encrypted, encryption_key_version, ssl_mode)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING ${SAFE_COLUMNS}`,
       [
@@ -162,10 +156,10 @@ connectionsRouter.post('/', requireAuth, async (req, res, next) => {
         input.host,
         input.port,
         input.database,
-        input.sqlitePath,
         input.connectionUri ? encryptSecret(input.connectionUri) : null,
         input.username,
         encryptSecret(input.password),
+        keyVer,
         input.sslMode
       ]
     );
@@ -245,11 +239,12 @@ connectionsRouter.patch('/:id', requireAuth, async (req, res, next) => {
     }
     await validateConnectionTarget(targetConfig(input));
 
+    const keyVer = currentKeyVersion();
     const { rows } = await pool.query(
       `UPDATE database_connections
        SET engine = $3, name = $4, host = $5, port = $6, database_name = $7,
-           sqlite_path = $8, connection_uri_encrypted = $9,
-           username = $10, password_encrypted = $11, ssl_mode = $12, updated_at = now()
+           connection_uri_encrypted = $8,
+           username = $9, password_encrypted = $10, encryption_key_version = $11, ssl_mode = $12, updated_at = now()
        WHERE id = $1 AND owner_id = $2
        RETURNING ${SAFE_COLUMNS}`,
       [
@@ -260,10 +255,10 @@ connectionsRouter.patch('/:id', requireAuth, async (req, res, next) => {
         input.host,
         input.port,
         input.database,
-        input.sqlitePath,
         input.connectionUri ? encryptSecret(input.connectionUri) : null,
         input.username,
         encryptSecret(input.password),
+        keyVer,
         input.sslMode
       ]
     );

@@ -1,10 +1,5 @@
-import { readFile, realpath, stat } from 'node:fs/promises';
 import { resolveSrv } from 'node:dns/promises';
-import { Worker } from 'node:worker_threads';
-import path from 'node:path';
-import initSqlJs, { type Database as SqliteDatabase } from 'sql.js';
 import { MongoClient, type Document } from 'mongodb';
-import sqlServer from 'mssql';
 import mysql from 'mysql2/promise';
 import type { Pool } from 'pg';
 import { assertHostAllowed, HostGuardError } from './hostGuard';
@@ -64,20 +59,15 @@ export function buildTableRecordCountQuery(
 
   const identifier = (value: string): string => {
     if (engine === 'mysql') return `\`${value.replace(/`/g, '``')}\``;
-    if (engine === 'sqlserver') return `[${value.replace(/]/g, ']]')}]`;
     return `"${value.replace(/"/g, '""')}"`;
   };
-  const count =
-    engine === 'sqlserver'
-      ? 'COALESCE(SUM(CAST(1 AS BIGINT)), CAST(0 AS BIGINT))'
-      : 'COUNT(*)';
   const counts = tables.map(({ schema, table }) => {
     const qualifiedTable = `${identifier(schema)}.${identifier(table)}`;
     const name = `${schema}.${table}`.replace(/'/g, "''");
     const relationshipCount = relationshipCounts
       ? `, ${relationshipCounts.get(`${schema}.${table}`) ?? 0} AS relationship_count`
       : '';
-    return `SELECT '${name}' AS table_name, ${count} AS record_count${relationshipCount} FROM ${qualifiedTable}`;
+    return `SELECT '${name}' AS table_name, COUNT(*) AS record_count${relationshipCount} FROM ${qualifiedTable}`;
   });
   return `${counts.join(' UNION ALL ')} ORDER BY record_count DESC, table_name ASC`;
 }
@@ -154,9 +144,6 @@ export function parseMongoUri(uri: string): {
 const schemaCache = new Map<string, { snapshot: SchemaSnapshot; expiresAt: number }>();
 const mongoClients = new Map<string, { client: MongoClient; lastUsed: number }>();
 const MAX_MONGO_CLIENTS = 20;
-const sqlitePromise = initSqlJs({
-  locateFile: filename => require.resolve(`sql.js/dist/${filename}`)
-});
 
 function timeoutMs(engine?: NonNullable<TargetConfig['engine']>) {
   if (engine === 'mysql') {
@@ -170,10 +157,6 @@ function timeoutMs(engine?: NonNullable<TargetConfig['engine']>) {
 }
 
 export async function validateConnectionTarget(config: TargetConfig) {
-  if (config.engine === 'sqlite') {
-    await sqliteDatabaseFile(config);
-    return;
-  }
   await assertNetworkHost(config);
 }
 
@@ -216,15 +199,8 @@ function snapshot(tables: TableMeta[], relationships: SchemaSnapshot['relationsh
   return { tables, relationships, introspectedAt: new Date().toISOString() };
 }
 
-function sqlDialect(engine: NonNullable<TargetConfig['engine']>) {
-  if (engine === 'mysql') return 'MySQL';
-  if (engine === 'sqlserver') return 'TransactSQL';
-  return 'SQLite';
-}
-
 function validateDialectSql(
   raw: string,
-  engine: 'mysql' | 'sqlserver' | 'sqlite',
   allowed: TableRef[],
   references?: TableRef[]
 ): string {
@@ -234,7 +210,7 @@ function validateDialectSql(
   const parser = new (require('node-sql-parser').Parser)();
   let parsed: any;
   try {
-    parsed = parser.astify(query, { database: sqlDialect(engine) });
+    parsed = parser.astify(query, { database: 'MySQL' });
   } catch {
     throw new Error('The model returned SQL that could not be parsed.');
   }
@@ -246,8 +222,18 @@ function validateDialectSql(
   const forbiddenTables = new Set(['openrowset', 'opendatasource', 'openquery', 'xp_cmdshell']);
   const forbidden = /^(insert|update|delete|replace|create|alter|drop|truncate|attach|detach|pragma|vacuum|call|execute|exec)$/i;
   const forbiddenFunctions = new Set([
-    'sleep', 'benchmark', 'load_file', 'load_extension', 'readfile', 'writefile',
-    'get_lock', 'release_lock', 'openrowset', 'opendatasource', 'xp_cmdshell', 'sp_execute'
+    'sleep',
+    'benchmark',
+    'load_file',
+    'load_extension',
+    'readfile',
+    'writefile',
+    'get_lock',
+    'release_lock',
+    'openrowset',
+    'opendatasource',
+    'xp_cmdshell',
+    'sp_execute'
   ]);
   const visited = new Set<object>();
   let invalid = false;
@@ -266,7 +252,10 @@ function validateDialectSql(
     if (node.type === 'function') {
       const functionParts = node.name?.name;
       const name = Array.isArray(functionParts)
-        ? functionParts.map((part: { value?: string }) => part.value ?? '').join('.').toLowerCase()
+        ? functionParts
+            .map((part: { value?: string }) => part.value ?? '')
+            .join('.')
+            .toLowerCase()
         : String(functionParts ?? node.name ?? '').toLowerCase();
       if (forbiddenFunctions.has(name)) invalid = true;
     }
@@ -278,7 +267,6 @@ function validateDialectSql(
         for (const cte of node.with) {
           const cteName = String(cte.name?.value ?? cte.name ?? '').toLowerCase();
           if (cteName) cteNames.add(cteName);
-          if (engine === 'sqlite' && cte.recursive) invalid = true;
           if (cte.stmt?.ast) walk(cte.stmt.ast);
           else if (cte.stmt) walk(cte.stmt);
         }
@@ -286,19 +274,12 @@ function validateDialectSql(
       if (Array.isArray(node.from)) {
         for (const source of node.from) {
           if (typeof source.table !== 'string') {
-            if (engine === 'sqlserver') invalid = true;
             continue;
           }
           const table = source.table.toLowerCase();
           if (forbiddenTables.has(table)) invalid = true;
           if (cteNames.has(table)) continue;
-          if (engine === 'sqlserver' && (source.server || (source.schema && source.db))) {
-            invalid = true;
-          }
-          const schema = String(
-            source.schema ?? source.db ?? (engine === 'sqlite' ? 'main' : '')
-          ).toLowerCase();
-          if (engine === 'sqlserver' && !schema) invalid = true;
+          const schema = String(source.schema ?? source.db ?? '').toLowerCase();
           tables.push({ schema, table });
         }
       }
@@ -321,7 +302,9 @@ function validateDialectSql(
         : ref.table.toLowerCase() === table.table
     );
     if (!match) {
-      throw new Error(`Table ${table.schema ? `${table.schema}.` : ''}${table.table} is outside this session's scope.`);
+      throw new Error(
+        `Table ${table.schema ? `${table.schema}.` : ''}${table.table} is outside this session's scope.`
+      );
     }
     references?.push(match);
   }
@@ -443,139 +426,6 @@ function queryTimeoutMs() {
   return Number.isFinite(value) && value > 0 ? value : 5000;
 }
 
-function sqlServerConfig(config: TargetConfig, requestTimeout = queryTimeoutMs()): sqlServer.config {
-  return {
-    server: config.host,
-    port: config.port,
-    database: config.database,
-    user: config.user,
-    password: config.password,
-    connectionTimeout: timeoutMs(),
-    requestTimeout,
-    pool: { max: 2, min: 0, idleTimeoutMillis: 30_000 },
-    options: {
-      encrypt: config.sslMode !== 'disable',
-      trustServerCertificate: !['verify-ca', 'verify-full'].includes(config.sslMode)
-    }
-  };
-}
-
-async function sqliteDatabaseFile(config: TargetConfig): Promise<string> {
-  const allowedDir = process.env.SQLITE_ALLOWED_DIR;
-  if (!allowedDir) {
-    throw new TargetConfigurationError('SQLite support requires the API administrator to set SQLITE_ALLOWED_DIR.');
-  }
-  if (!config.sqlitePath || !path.isAbsolute(config.sqlitePath)) {
-    throw new TargetConfigurationError('A valid absolute SQLite database path is required.');
-  }
-  let root: string;
-  try {
-    root = await realpath(allowedDir);
-  } catch {
-    throw new TargetConfigurationError('The configured SQLITE_ALLOWED_DIR must exist and be accessible.');
-  }
-  let file: string;
-  try {
-    file = await realpath(config.sqlitePath);
-  } catch {
-    throw new TargetConfigurationError('The SQLite database file could not be accessed.');
-  }
-  const relative = path.relative(root, file);
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new TargetConfigurationError('The SQLite database path must be inside SQLITE_ALLOWED_DIR.');
-  }
-  const info = await stat(file);
-  if (!info.isFile()) throw new TargetConfigurationError('The SQLite database path must be a regular file.');
-  const maxSizeMb = Number(process.env.SQLITE_MAX_FILE_SIZE_MB || 256);
-  if (!Number.isFinite(maxSizeMb) || maxSizeMb <= 0) {
-    throw new TargetConfigurationError('SQLITE_MAX_FILE_SIZE_MB must be a positive number.');
-  }
-  const maxBytes = maxSizeMb * 1024 * 1024;
-  if (info.size > maxBytes) throw new TargetConfigurationError('The SQLite database exceeds the configured file-size limit.');
-  return file;
-}
-
-async function sqliteDatabaseBytes(config: TargetConfig): Promise<Uint8Array> {
-  const file = await sqliteDatabaseFile(config);
-  return readFile(file);
-}
-
-async function openSqlite(config: TargetConfig): Promise<SqliteDatabase> {
-  const bytes = await sqliteDatabaseBytes(config);
-  const SQL = await sqlitePromise;
-  const db = new SQL.Database(bytes);
-  db.run('PRAGMA query_only = ON');
-  return db;
-}
-
-async function runSqliteQueryInWorker(
-  config: TargetConfig,
-  query: string,
-  timeout: number
-): Promise<{ columns: Array<{ name: string; dataType: string }>; rows: unknown[][]; truncated: boolean }> {
-  const bytes = await sqliteDatabaseBytes(config);
-  const source = __filename.endsWith('.ts');
-  const workerPath = path.join(__dirname, source ? 'sqliteQueryWorker.ts' : 'sqliteQueryWorker.js');
-  const worker = new Worker(workerPath, {
-    workerData: { bytes, query, maxResultBytes: 5 * 1024 * 1024 },
-    execArgv: source ? ['--import', 'tsx'] : undefined,
-    resourceLimits: { maxOldGenerationSizeMb: Number(process.env.SQLITE_WORKER_MEMORY_MB || 512) }
-  });
-
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      void worker.terminate();
-      reject(new TargetDbTimeoutError());
-    }, timeout);
-    worker.once('message', (message: {
-      error?: string;
-      columns?: Array<{ name: string; dataType: string }>;
-      rows?: unknown[][];
-      truncated?: boolean;
-    }) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (message.error) {
-        reject(new Error(message.error));
-      } else {
-        resolve({
-          columns: message.columns ?? [],
-          rows: message.rows ?? [],
-          truncated: message.truncated ?? false
-        });
-      }
-    });
-    worker.once('error', error => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(error);
-    });
-    worker.once('exit', code => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(new Error(`SQLite query worker exited with code ${code}.`));
-    });
-  });
-}
-
-function sqliteRows(db: SqliteDatabase, query: string) {
-  const statement = db.prepare(query);
-  try {
-    const columns = statement.getColumnNames().map(name => ({ name, dataType: 'SQLite' }));
-    const rows: Array<Record<string, unknown>> = [];
-    while (statement.step()) rows.push(statement.getAsObject() as Record<string, unknown>);
-    return { columns, rows };
-  } finally {
-    statement.free();
-  }
-}
-
 function safeMongoValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString();
@@ -620,9 +470,7 @@ function validateMongoQuery(raw: string, allowed: TableRef[]): MongoQuery {
           (item.relationshipCount !== undefined &&
             (!Number.isSafeInteger(item.relationshipCount) ||
               Number(item.relationshipCount) < 0)) ||
-          Object.keys(item).some(
-            key => key !== 'schema' && key !== 'table' && key !== 'relationshipCount'
-          )
+          Object.keys(item).some(key => key !== 'schema' && key !== 'table' && key !== 'relationshipCount')
         );
       }) ||
       Object.keys(query).some(key => key !== 'operation' && key !== 'collections')
@@ -661,14 +509,40 @@ function validateMongoQuery(raw: string, allowed: TableRef[]): MongoQuery {
   }
 
   const stages = new Set([
-    '$match', '$project', '$sort', '$limit', '$skip', '$group', '$unwind',
-    '$count', '$addFields', '$set', '$unset', '$replaceRoot', '$replaceWith',
-    '$bucket', '$bucketAuto', '$sample'
+    '$match',
+    '$project',
+    '$sort',
+    '$limit',
+    '$skip',
+    '$group',
+    '$unwind',
+    '$count',
+    '$addFields',
+    '$set',
+    '$unset',
+    '$replaceRoot',
+    '$replaceWith',
+    '$bucket',
+    '$bucketAuto',
+    '$sample'
   ]);
   const forbiddenKeys = new Set([
-    '$where', '$function', '$accumulator', '$out', '$merge', '$lookup',
-    '$unionWith', '$graphLookup', '$documents', '$search', '$vectorSearch',
-    '$collStats', '$indexStats', '$currentOp', '$listSessions', '$planCacheStats'
+    '$where',
+    '$function',
+    '$accumulator',
+    '$out',
+    '$merge',
+    '$lookup',
+    '$unionWith',
+    '$graphLookup',
+    '$documents',
+    '$search',
+    '$vectorSearch',
+    '$collStats',
+    '$indexStats',
+    '$currentOp',
+    '$listSessions',
+    '$planCacheStats'
   ]);
   const checkValue = (value: unknown) => {
     if (Array.isArray(value)) {
@@ -726,9 +600,7 @@ function validateMysqlTableCountOperation(
       typeof table.table !== 'string' ||
       !Number.isSafeInteger(table.relationshipCount) ||
       Number(table.relationshipCount) < 0 ||
-      Object.keys(table).some(
-        key => !['schema', 'table', 'relationshipCount'].includes(key)
-      )
+      Object.keys(table).some(key => !['schema', 'table', 'relationshipCount'].includes(key))
     ) {
       throw new Error('A MySQL table count operation contains invalid table metadata.');
     }
@@ -757,10 +629,7 @@ export function validateDatabaseQuery(
     if (engine === 'mongodb') return JSON.stringify(validateMongoQuery(query, allowed));
     if (engine === 'mysql') {
       const countOperation = validateMysqlTableCountOperation(query, allowed);
-      return countOperation ? JSON.stringify(countOperation) : validateDialectSql(query, engine, allowed);
-    }
-    if (engine === 'sqlserver' || engine === 'sqlite') {
-      return validateDialectSql(query, engine, allowed);
+      return countOperation ? JSON.stringify(countOperation) : validateDialectSql(query, allowed);
     }
     throw new Error('Unsupported database type.');
   } catch (error) {
@@ -782,9 +651,10 @@ export function referencedDatabaseTables(
     references = referencedTables(query);
   } else if (engine === 'mongodb') {
     const mongoQuery = validateMongoQuery(query, allowed);
-    const collections = 'operation' in mongoQuery
-      ? new Set(mongoQuery.collections.map(collection => `${collection.schema}.${collection.table}`))
-      : new Set([mongoQuery.collection]);
+    const collections =
+      'operation' in mongoQuery
+        ? new Set(mongoQuery.collections.map(collection => `${collection.schema}.${collection.table}`))
+        : new Set([mongoQuery.collection]);
     references = allowed.filter(ref =>
       'operation' in mongoQuery
         ? collections.has(`${ref.schema}.${ref.table}`)
@@ -799,11 +669,10 @@ export function referencedDatabaseTables(
       }));
     } else {
       references = [];
-      validateDialectSql(query, engine, allowed, references);
+      validateDialectSql(query, allowed, references);
     }
   } else {
-    references = [];
-    validateDialectSql(query, engine, allowed, references);
+    throw new Error('Unsupported database type.');
   }
   const seen = new Set<string>();
   return references.filter(ref => {
@@ -838,41 +707,46 @@ export async function testDatabaseConnection(config: TargetConfig, connectionId:
         await connection.end();
       }
     }
-    if (config.engine === 'sqlserver') {
-      await assertNetworkHost(config);
-      const connection = await new sqlServer.ConnectionPool(sqlServerConfig(config)).connect();
-      try {
-        const result = await connection.request().query<{ version: string }>('SELECT @@VERSION AS version');
-        return {
-          ok: true as const,
-          serverVersion: result.recordset[0]?.version ?? 'SQL Server',
-          sessionReadOnly: false,
-          roleIsSuperuser: false,
-          warning: 'Use a database account with read-only privileges for safety.'
-        };
-      } finally {
-        await connection.close();
-      }
-    }
-    if (config.engine === 'sqlite') {
-      const db = await openSqlite(config);
-      try {
-        const result = sqliteRows(db, 'SELECT sqlite_version() AS version');
-        return {
-          ok: true as const,
-          serverVersion: String(result.rows[0]?.version ?? 'SQLite'),
-          sessionReadOnly: true,
-          roleIsSuperuser: false,
-          warning: 'Queries run against an in-memory copy of this database file.'
-        };
-      } finally {
-        db.close();
-      }
-    }
 
     await assertNetworkHost(config);
     const client = await getMongoClient(config, connectionId);
     await client.db(config.database).command({ ping: 1 });
+
+    let roleIsWriteCapable = false;
+    try {
+      const status = await client.db(config.database).command({ connectionStatus: 1 });
+      const authenticatedUsers = status?.authenticatedUsers ?? [];
+      const writeRoles = new Set([
+        'readWrite',
+        'readWriteAnyDatabase',
+        'dbAdmin',
+        'dbAdminAnyDatabase',
+        'dbOwner',
+        'clusterAdmin',
+        'restore',
+        'root',
+        'backup'
+      ]);
+      for (const user of authenticatedUsers) {
+        for (const role of user.roles ?? []) {
+          if (writeRoles.has(role.role)) {
+            roleIsWriteCapable = true;
+          }
+        }
+      }
+    } catch {
+      // connectionStatus may be unavailable or restricted; rely on the warning below.
+    }
+
+    if (roleIsWriteCapable) {
+      return {
+        ok: true as const,
+        serverVersion: 'MongoDB',
+        sessionReadOnly: false,
+        roleIsSuperuser: false,
+        warning: 'This MongoDB account has write-capable roles. Use a read-only account for safety.'
+      };
+    }
     return {
       ok: true as const,
       serverVersion: 'MongoDB',
@@ -922,8 +796,6 @@ export async function getDatabaseSchema(
 
   let result: SchemaSnapshot;
   if (config.engine === 'mysql') result = await mysqlSchema(config);
-  else if (config.engine === 'sqlserver') result = await sqlServerSchema(config);
-  else if (config.engine === 'sqlite') result = await sqliteSchema(config);
   else if (config.engine === 'mongodb') result = await mongoSchema(config, connectionId);
   else result = await getSchemaSnapshot(targetPool({ id: connectionId, updated_at: new Date() }, config), connectionId, config, refresh);
 
@@ -945,8 +817,12 @@ async function mysqlSchema(config: TargetConfig): Promise<SchemaSnapshot> {
     const tables = tableRows.map(row => makeTable(config.database, row.name, row.type === 'VIEW' ? 'view' : 'table'));
     const byName = new Map(tables.map(table => [table.name, table]));
     const columnRows = await queryMysqlRows<{
-      table_name: string; column_name: string; column_type: string; is_nullable: string;
-      column_default: string | null; column_key: string;
+      table_name: string;
+      column_name: string;
+      column_type: string;
+      is_nullable: string;
+      column_default: string | null;
+      column_key: string;
     }>(
       connection,
       `SELECT table_name, column_name, column_type, is_nullable, column_default, column_key
@@ -955,12 +831,22 @@ async function mysqlSchema(config: TargetConfig): Promise<SchemaSnapshot> {
     );
     for (const column of columnRows) {
       byName.get(column.table_name)?.columns.push(
-        makeColumn(column.column_name, column.column_type, column.is_nullable === 'YES', column.column_key === 'PRI', false, column.column_default)
+        makeColumn(
+          column.column_name,
+          column.column_type,
+          column.is_nullable === 'YES',
+          column.column_key === 'PRI',
+          false,
+          column.column_default
+        )
       );
     }
     const foreignRows = await queryMysqlRows<{
-      constraint_name: string; table_name: string; column_name: string;
-      referenced_table_name: string; referenced_column_name: string;
+      constraint_name: string;
+      table_name: string;
+      column_name: string;
+      referenced_table_name: string;
+      referenced_column_name: string;
     }>(
       connection,
       `SELECT constraint_name, table_name, column_name, referenced_table_name, referenced_column_name
@@ -988,158 +874,55 @@ async function mysqlSchema(config: TargetConfig): Promise<SchemaSnapshot> {
   }
 }
 
-async function sqlServerSchema(config: TargetConfig): Promise<SchemaSnapshot> {
-  await assertNetworkHost(config);
-  const connection = await new sqlServer.ConnectionPool(sqlServerConfig(config)).connect();
-  try {
-    const [tableResult, columnResult, foreignResult] = await Promise.all([
-      connection.request().query<{ schema_name: string; table_name: string; type: string }>(
-        `SELECT s.name AS schema_name, o.name AS table_name,
-                CASE WHEN o.type = 'V' THEN 'view' ELSE 'table' END AS type
-         FROM sys.objects o JOIN sys.schemas s ON o.schema_id = s.schema_id
-         WHERE o.type IN ('U', 'V') ORDER BY s.name, o.name`
-      ),
-      connection.request().query<{
-        schema_name: string; table_name: string; column_name: string; data_type: string;
-        is_nullable: boolean; is_primary_key: boolean; is_foreign_key: boolean; default_value: string | null;
-      }>(
-        `SELECT s.name AS schema_name, o.name AS table_name, c.name AS column_name,
-                t.name AS data_type, c.is_nullable,
-                CONVERT(bit, CASE WHEN pk.column_id IS NULL THEN 0 ELSE 1 END) AS is_primary_key,
-                CONVERT(bit, CASE WHEN fk.parent_column_id IS NULL THEN 0 ELSE 1 END) AS is_foreign_key,
-                OBJECT_DEFINITION(c.default_object_id) AS default_value
-         FROM sys.columns c JOIN sys.objects o ON c.object_id = o.object_id
-         JOIN sys.schemas s ON o.schema_id = s.schema_id
-         JOIN sys.types t ON c.user_type_id = t.user_type_id
-         LEFT JOIN (SELECT ic.object_id, ic.column_id FROM sys.indexes i
-                    JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-                    WHERE i.is_primary_key = 1) pk ON pk.object_id = c.object_id AND pk.column_id = c.column_id
-         LEFT JOIN sys.foreign_key_columns fk ON fk.parent_object_id = c.object_id AND fk.parent_column_id = c.column_id
-         WHERE o.type IN ('U', 'V') ORDER BY s.name, o.name, c.column_id`
-      ),
-      connection.request().query<{
-        name: string; from_schema: string; from_table: string; from_column: string;
-        to_schema: string; to_table: string; to_column: string; delete_action: string; update_action: string;
-      }>(
-        `SELECT fk.name, ss.name AS from_schema, st.name AS from_table, sc.name AS from_column,
-                ds.name AS to_schema, dt.name AS to_table, dc.name AS to_column,
-                fk.delete_referential_action_desc AS delete_action,
-                fk.update_referential_action_desc AS update_action
-         FROM sys.foreign_key_columns fkc
-         JOIN sys.foreign_keys fk ON fk.object_id = fkc.constraint_object_id
-         JOIN sys.tables st ON st.object_id = fkc.parent_object_id
-         JOIN sys.schemas ss ON ss.schema_id = st.schema_id
-         JOIN sys.columns sc ON sc.object_id = st.object_id AND sc.column_id = fkc.parent_column_id
-         JOIN sys.tables dt ON dt.object_id = fkc.referenced_object_id
-         JOIN sys.schemas ds ON ds.schema_id = dt.schema_id
-         JOIN sys.columns dc ON dc.object_id = dt.object_id AND dc.column_id = fkc.referenced_column_id
-         ORDER BY fk.name, fkc.constraint_column_id`
-      )
-    ]);
-    const tables = tableResult.recordset.map(row => makeTable(row.schema_name, row.table_name, row.type === 'view' ? 'view' : 'table'));
-    const byKey = new Map(tables.map(table => [`${table.schema}.${table.name}`, table]));
-    for (const column of columnResult.recordset) {
-      byKey.get(`${column.schema_name}.${column.table_name}`)?.columns.push(
-        makeColumn(column.column_name, column.data_type, column.is_nullable, column.is_primary_key, column.is_foreign_key, column.default_value)
-      );
-    }
-    const grouped = new Map<string, Array<(typeof foreignResult.recordset)[number]>>();
-    for (const row of foreignResult.recordset) grouped.set(row.name, [...(grouped.get(row.name) ?? []), row]);
-    const relationships = [...grouped].map(([name, rows]) => ({
-      name,
-      from: { schema: rows[0].from_schema, table: rows[0].from_table, columns: rows.map(row => row.from_column) },
-      to: { schema: rows[0].to_schema, table: rows[0].to_table, columns: rows.map(row => row.to_column) },
-      onDelete: rows[0].delete_action,
-      onUpdate: rows[0].update_action
-    }));
-    return snapshot(tables, relationships);
-  } finally {
-    await connection.close();
-  }
-}
-
-async function sqliteSchema(config: TargetConfig): Promise<SchemaSnapshot> {
-  const db = await openSqlite(config);
-  try {
-    const entries = sqliteRows(
-      db,
-      "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name"
-    ).rows as Array<{ name: string; type: string }>;
-    const tables = entries.map(entry => makeTable('main', entry.name, entry.type === 'view' ? 'view' : 'table'));
-    const relations: SchemaSnapshot['relationships'] = [];
-    for (const table of tables) {
-      const escaped = table.name.replace(/"/g, '""');
-      const columnRows = sqliteRows(db, `PRAGMA table_info("${escaped}")`).rows as Array<{
-        name: string; type: string; notnull: number; dflt_value: unknown; pk: number;
-      }>;
-      const foreignRows = sqliteRows(db, `PRAGMA foreign_key_list("${escaped}")`).rows as Array<{
-        id: number; table: string; from: string; to: string; on_delete: string; on_update: string;
-      }>;
-      table.columns = columnRows.map(column => makeColumn(
-        column.name,
-        column.type || 'unknown',
-        !column.notnull,
-        column.pk > 0,
-        foreignRows.some(foreign => foreign.from === column.name),
-        column.dflt_value === null ? null : String(column.dflt_value)
-      ));
-      const grouped = new Map<number, typeof foreignRows>();
-      for (const row of foreignRows) grouped.set(row.id, [...(grouped.get(row.id) ?? []), row]);
-      for (const [id, rows] of grouped) relations.push({
-        name: `fk_${table.name}_${id}`,
-        from: { schema: 'main', table: table.name, columns: rows.map(row => row.from) },
-        to: { schema: 'main', table: rows[0].table, columns: rows.map(row => row.to) },
-        onDelete: rows[0].on_delete,
-        onUpdate: rows[0].on_update
-      });
-    }
-    return snapshot(tables, relations);
-  } finally {
-    db.close();
-  }
-}
-
 async function mongoSchema(config: TargetConfig, connectionId: string): Promise<SchemaSnapshot> {
   await assertNetworkHost(config);
   const client = await getMongoClient(config, connectionId);
   const database = client.db(config.database);
-  const collections = (await database.listCollections({}, { nameOnly: true }).toArray())
-    .filter(collection => !collection.name.startsWith('system.'));
+  const collections = (await database.listCollections({}, { nameOnly: true }).toArray()).filter(
+    collection => !collection.name.startsWith('system.')
+  );
   const tables: TableMeta[] = [];
   for (let index = 0; index < collections.length; index += 5) {
-    const batch = await Promise.all(collections.slice(index, index + 5).map(async collection => {
-      const table = makeTable(config.database, collection.name);
-      const samples = await database.collection(collection.name)
-        .aggregate([
-          { $sample: { size: 20 } },
-          {
-            $project: {
-              _id: 0,
-              fields: {
-                $slice: [
-                  {
-                    $map: {
-                      input: { $objectToArray: '$$ROOT' },
-                      as: 'field',
-                      in: { name: '$$field.k', type: { $type: '$$field.v' } }
-                    }
-                  },
-                  500
-                ]
+    const batch = await Promise.all(
+      collections.slice(index, index + 5).map(async collection => {
+        const table = makeTable(config.database, collection.name);
+        const samples = await database
+          .collection(collection.name)
+          .aggregate(
+            [
+              { $sample: { size: 20 } },
+              {
+                $project: {
+                  _id: 0,
+                  fields: {
+                    $slice: [
+                      {
+                        $map: {
+                          input: { $objectToArray: '$$ROOT' },
+                          as: 'field',
+                          in: { name: '$$field.k', type: { $type: '$$field.v' } }
+                        }
+                      },
+                      500
+                    ]
+                  }
+                }
               }
-            }
+            ],
+            { maxTimeMS: 5000, allowDiskUse: false }
+          )
+          .toArray();
+        const fieldTypes = new Map<string, string>();
+        for (const document of samples) {
+          for (const field of document.fields ?? []) {
+            if (!fieldTypes.has(field.name)) fieldTypes.set(field.name, field.type);
           }
-        ], { maxTimeMS: 5000, allowDiskUse: false }).toArray();
-      const fieldTypes = new Map<string, string>();
-      for (const document of samples) {
-        for (const field of document.fields ?? []) {
-          if (!fieldTypes.has(field.name)) fieldTypes.set(field.name, field.type);
         }
-      }
-      table.columns = [...fieldTypes].map(([name, type]) => makeColumn(name, type));
-      if (fieldTypes.has('_id')) table.columns.find(column => column.name === '_id')!.isPrimaryKey = true;
-      return table;
-    }));
+        table.columns = [...fieldTypes].map(([name, type]) => makeColumn(name, type));
+        if (fieldTypes.has('_id')) table.columns.find(column => column.name === '_id')!.isPrimaryKey = true;
+        return table;
+      })
+    );
     tables.push(...batch);
   }
   return snapshot(tables);
@@ -1157,7 +940,11 @@ export async function runDatabaseQuery(
   const started = Date.now();
 
   if (config.engine === 'postgres' || !config.engine) {
-    return runReadOnlyQuery(targetPool(ref, config), validateSql(rawQuery, allowed), { maxRows, timeoutMs: timeout });
+    return runReadOnlyQuery(
+      targetPool(ref, config),
+      validateSql(rawQuery, allowed),
+      { maxRows, timeoutMs: timeout }
+    );
   }
   if (config.engine === 'mongodb') {
     const query = validateMongoQuery(rawQuery, allowed);
@@ -1176,9 +963,7 @@ export async function runDatabaseQuery(
           rows.push({
             table_name: table.table,
             record_count: recordCount,
-            ...(table.relationshipCount === undefined
-              ? {}
-              : { relationship_count: table.relationshipCount })
+            ...(table.relationshipCount === undefined ? {} : { relationship_count: table.relationshipCount })
           });
         }
         rows.sort((a, b) => {
@@ -1200,10 +985,10 @@ export async function runDatabaseQuery(
       }
 
       const collection = client.db(config.database).collection(query.collection);
-      const cursor = collection.aggregate(
-        [...query.pipeline, { $limit: maxRows + 1 }],
-        { maxTimeMS: timeout, allowDiskUse: false }
-      );
+      const cursor = collection.aggregate([...query.pipeline, { $limit: maxRows + 1 }], {
+        maxTimeMS: timeout,
+        allowDiskUse: false
+      });
       const documents: Array<Record<string, unknown>> = [];
       const maxResultBytes = 5 * 1024 * 1024;
       let resultBytes = 0;
@@ -1242,27 +1027,9 @@ export async function runDatabaseQuery(
       throw error;
     }
   }
-  if (config.engine === 'sqlite') {
-    const query = validateDialectSql(rawQuery, 'sqlite', allowed);
-    const result = await runSqliteQueryInWorker(
-      config,
-      `SELECT * FROM (${query}) AS _session_query LIMIT ${maxRows + 1}`,
-      timeout
-    );
-    const truncated = result.truncated || result.rows.length > maxRows;
-    return {
-      columns: result.columns,
-      rows: result.rows.slice(0, maxRows),
-      rowCount: Math.min(result.rows.length, maxRows),
-      truncated,
-      executionMs: Date.now() - started
-    };
-  }
   if (config.engine === 'mysql') {
     const tableCountOperation = validateMysqlTableCountOperation(rawQuery, allowed);
-    const query = tableCountOperation
-      ? null
-      : validateDialectSql(rawQuery, 'mysql', allowed);
+    const query = tableCountOperation ? null : validateDialectSql(rawQuery, allowed);
     const connection = await mysqlConnection(config);
     try {
       try {
@@ -1284,8 +1051,7 @@ export async function runDatabaseQuery(
           const remainingMs = timeout - (Date.now() - started);
           if (remainingMs <= 0) throw new TargetDbTimeoutError();
           const qualifiedTable =
-            `\`${table.schema.replace(/`/g, '``')}\`.` +
-            `\`${table.table.replace(/`/g, '``')}\``;
+            `\`${table.schema.replace(/`/g, '``')}\`.` + `\`${table.table.replace(/`/g, '``')}\``;
           try {
             const [countRows] = await connection.query({
               sql: `SELECT COUNT(*) AS record_count FROM ${qualifiedTable}`,
@@ -1297,10 +1063,7 @@ export async function runDatabaseQuery(
               relationship_count: table.relationshipCount
             });
           } catch (error) {
-            const stageError = mysqlCountStageError(
-              `counting ${table.schema}.${table.table}`,
-              error
-            );
+            const stageError = mysqlCountStageError(`counting ${table.schema}.${table.table}`, error);
             throw stageError;
           }
         }
@@ -1343,30 +1106,7 @@ export async function runDatabaseQuery(
     }
   }
 
-  const query = validateDialectSql(rawQuery, 'sqlserver', allowed);
-  await assertNetworkHost(config);
-  const connection = await new sqlServer.ConnectionPool(sqlServerConfig(config, timeout)).connect();
-  const transaction = new sqlServer.Transaction(connection);
-  try {
-    await transaction.begin(sqlServer.ISOLATION_LEVEL.READ_COMMITTED);
-    await new sqlServer.Request(transaction).query(`SET ROWCOUNT ${maxRows + 1}`);
-    const result = await new sqlServer.Request(transaction).query(query);
-    await new sqlServer.Request(transaction).query('SET ROWCOUNT 0');
-    await transaction.rollback();
-    const fields = Object.entries(result.recordset?.columns ?? {}).map(([name, column]: [string, any]) => ({
-      name,
-      dataType: String(column.type?.name ?? 'unknown')
-    }));
-    const rows = result.recordset ?? [];
-    return normalizeRows(fields, rows, maxRows, Date.now() - started);
-  } catch (error: any) {
-    await new sqlServer.Request(transaction).query('SET ROWCOUNT 0').catch(() => undefined);
-    await transaction.rollback().catch(() => undefined);
-    if (error?.code === 'ETIMEOUT') throw new TargetDbTimeoutError();
-    throw error;
-  } finally {
-    await connection.close();
-  }
+  throw new Error('Unsupported database type.');
 }
 
 export async function closeDatabaseConnections() {

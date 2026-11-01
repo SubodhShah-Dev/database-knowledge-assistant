@@ -22,7 +22,6 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
   const [database, setDatabase] = useState(connection?.database_name ?? '');
   const [username, setUsername] = useState(connection?.username ?? '');
   const [password, setPassword] = useState('');
-  const [sqlitePath, setSqlitePath] = useState(connection?.sqlite_path ?? '');
   const [connectionUri, setConnectionUri] = useState('');
   const [sslMode, setSslMode] = useState(connection?.ssl_mode ?? 'prefer');
   const [error, setError] = useState('');
@@ -50,12 +49,8 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
-    if ((!editing || engineChanged) && engine !== 'sqlite' && engine !== 'mongodb' && !password) {
+    if ((!editing || engineChanged) && engine !== 'mongodb' && !password) {
       setError('Password is required for this database type.');
-      return;
-    }
-    if (engine === 'sqlite' && !sqlitePath.trim()) {
-      setError('A SQLite database file path is required.');
       return;
     }
     if (engine === 'mongodb' && (!editing || engineChanged) && !connectionUri.trim()) {
@@ -74,7 +69,6 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
         username: username.trim(),
         password,
         sslMode,
-        sqlitePath: sqlitePath.trim(),
         connectionUri: connectionUri.trim()
       });
     } catch (err) {
@@ -111,28 +105,15 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
               onChange={event => {
                 const next = event.target.value as Connection['engine'];
                 if (next === engine) return;
-                if (engine === 'sqlite' && next !== 'sqlite') {
-                  setHost('127.0.0.1');
-                  setUsername('');
-                }
                 setEngine(next);
-                setPort(String(
-                  next === 'sqlserver' ? 1433
-                    : next === 'mysql' ? 3306
-                      : next === 'mongodb' ? 27017
-                        : next === 'sqlite' ? 1
-                          : 5432
-                ));
+                setPort(String(next === 'mysql' ? 3306 : next === 'mongodb' ? 27017 : 5432));
                 setPassword('');
                 setConnectionUri('');
-                setSqlitePath('');
                 setError('');
               }}
             >
               <option value="postgres">PostgreSQL</option>
               <option value="mysql">MySQL / MariaDB / TiDB</option>
-              <option value="sqlserver">Microsoft SQL Server</option>
-              <option value="sqlite">SQLite</option>
               <option value="mongodb">MongoDB</option>
             </select>
             {connection?.has_sessions ? (
@@ -156,23 +137,7 @@ export default function ConnectionForm({ connection, onClose, onSave }: Props) {
             />
           </label>
 
-          {engine === 'sqlite' ? (
-            <>
-              <label className="field">
-                <span>SQLite database file</span>
-                <input
-                  value={sqlitePath}
-                  onChange={event => setSqlitePath(event.target.value)}
-                  placeholder="/path/allowed/to/the/api/data.db"
-                  required
-                />
-              </label>
-              <p className="field-hint">
-                The file must be inside the API server's SQLITE_ALLOWED_DIR. Queries use an
-                in-memory copy and cannot modify the original file.
-              </p>
-            </>
-          ) : engine === 'mongodb' ? (
+          {engine === 'mongodb' ? (
             <>
               <label className="field">
                 <span>MongoDB connection URI</span>

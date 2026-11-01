@@ -163,9 +163,11 @@ export default function ConnectionsPage() {
                     <div>
                       <h2>{connection.name}</h2>
                       <p>
-                        {connection.engine === 'sqlite'
-                          ? `SQLite / ${connection.database_name}`
-                          : `${connection.host}:${connection.port} / ${connection.database_name}`}
+                      {connection.engine === 'mongodb'
+                        ? connection.host
+                          ? `${connection.host}:${connection.port} / ${connection.database_name}`
+                          : connection.database_name
+                        : `${connection.host}:${connection.port} / ${connection.database_name}`}
                       </p>
                     </div>
                   </div>
@@ -180,10 +182,8 @@ export default function ConnectionsPage() {
                   <div>
                     <dt>{connection.engine === 'mongodb' ? 'Connection URI' : 'Password'}</dt>
                     <dd>
-                      {connection.engine === 'sqlite'
-                        ? 'Not used'
-                        : connection.engine === 'mongodb'
-                          ? 'Stored securely'
+                      {connection.engine === 'mongodb'
+                        ? 'Stored securely'
                         : connection.has_password
                           ? 'Saved'
                           : 'Not saved'}

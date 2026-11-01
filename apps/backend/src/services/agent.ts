@@ -74,17 +74,16 @@ export function asksForRelationshipCounts(question: string): boolean {
 }
 
 function planSystem(engine: string, mode: AnswerMode = 'auto') {
-  const allowedModes = mode === 'auto'
-    ? 'data, schema, or clarify'
-    : `${mode} or clarify`;
-  const queryInstructions = engine === 'mongodb'
-    ? `- MongoDB aggregation format. For data, put a JSON string in "query" shaped like {"collection":"name","pipeline":[{"$match":{...}}]}.
+  const allowedModes = mode === 'auto' ? 'data, schema, or clarify' : `${mode} or clarify`;
+  const queryInstructions =
+    engine === 'mongodb'
+      ? `- MongoDB aggregation format. For data, put a JSON string in "query" shaped like {"collection":"name","pipeline":[{"$match":{...}}]}.
 - Use only the selected collections. Use only read-only aggregation stages: $match, $project, $sort, $limit, $skip, $group, $unwind, $count, $addFields, $set, $unset, $replaceRoot, $replaceWith, $bucket, $bucketAuto, $sample.`
-    : `- ${engine === 'sqlserver' ? 'SQL Server Transact-SQL' : engine === 'mysql' ? 'MySQL-compatible SQL' : engine === 'sqlite' ? 'SQLite SQL' : 'PostgreSQL'} dialect.
+      : `- ${engine === 'mysql' ? 'MySQL-compatible SQL' : 'PostgreSQL'} dialect.
 - data: exactly one SELECT statement. No INSERT/UPDATE/DELETE/DDL. No multiple statements.`;
   return `
 You plan database questions. The selected answer mode is "${mode}". Return JSON only:
-{"mode":"data","query":"..."} or {"mode":"schema","focus":"..."} or {"mode":"clarify","question":"..."}.
+{"mode":"data","query":"..."} or {"mode":"schema","focus":"..."} or {"mode":"clarify","question":"..."}
 
 Rules:
 - Choose only these modes: ${allowedModes}. Use clarify only when the question cannot be answered safely from the selected tables or supplied metadata.
