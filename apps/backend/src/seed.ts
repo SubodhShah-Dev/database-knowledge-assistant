@@ -1,21 +1,25 @@
 import bcrypt from 'bcrypt';
 import { pool } from './db';
 
-async function seed() {
-  const passwordHash = await bcrypt.hash('DemoPassword123!', 12);
-  await pool.query(
-    `INSERT INTO users(email, password_hash, role) VALUES ($1, $2, 'user')
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
-     RETURNING id`,
-    ['demo@example.com', passwordHash]
-  );
+const isProduction = process.env.NODE_ENV === 'production';
 
-  const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
-  await pool.query(
-    `INSERT INTO users(email, password_hash, role) VALUES ($1, $2, 'admin')
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role`,
-    ['admin@example.com', adminPasswordHash]
-  );
+async function seed() {
+  if (!isProduction) {
+    const passwordHash = await bcrypt.hash('DemoPassword123!', 12);
+    await pool.query(
+      `INSERT INTO users(email, password_hash, role) VALUES ($1, $2, 'user')
+       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+       RETURNING id`,
+      ['demo@example.com', passwordHash]
+    );
+
+    const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
+    await pool.query(
+      `INSERT INTO users(email, password_hash, role) VALUES ($1, $2, 'admin')
+       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role`,
+      ['admin@example.com', adminPasswordHash]
+    );
+  }
 
   await pool.query('UPDATE models SET is_default = false WHERE is_default = true');
   await pool.query(

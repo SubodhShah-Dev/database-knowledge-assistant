@@ -18,13 +18,15 @@ const DEMO_ACCOUNTS = [
   { label: 'Admin demo', email: 'admin@example.com', password: 'AdminPassword123!' }
 ] as const;
 
+const showDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true';
+
 export default function LoginPage() {
   const { token, login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<Mode>('login');
-  const [email, setEmail] = useState('demo@example.com');
-  const [password, setPassword] = useState('DemoPassword123!');
+  const [email, setEmail] = useState(showDemoAccounts ? 'demo@example.com' : '');
+  const [password, setPassword] = useState(showDemoAccounts ? 'DemoPassword123!' : '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -120,7 +122,7 @@ export default function LoginPage() {
         <ul className="login-features">
           <li>
             <IconDatabase size={17} />
-            <span>PostgreSQL, MySQL, TiDB, SQL Server, SQLite &amp; MongoDB</span>
+            <span>PostgreSQL, MySQL, TiDB &amp; MongoDB</span>
           </li>
           <li>
             <IconLock size={17} />
@@ -209,7 +211,7 @@ export default function LoginPage() {
           </form>
 
           <div className="auth-extra">
-            {mode === 'login' ? (
+            {mode === 'login' && showDemoAccounts ? (
               <div className="demo-accounts" aria-label="Demo accounts">
                 <p className="demo-accounts-title">Demo accounts</p>
                 {DEMO_ACCOUNTS.map(account => (

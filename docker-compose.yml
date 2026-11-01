@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: database_knowledge_assistant
       POSTGRES_USER: app_user
-      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD:-local_dev_password}
     ports:
       - "5434:5432"
     volumes:
@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_DB: demo_analytics
       POSTGRES_USER: demo_admin
-      POSTGRES_PASSWORD: demo_admin_password
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:-demo_admin_password}
     ports:
       - "5435:5432"
     volumes:
