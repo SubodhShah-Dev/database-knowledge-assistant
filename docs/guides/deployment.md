@@ -353,20 +353,33 @@ In the browser:
 
 ---
 
-## 12. Railway fallback (signups paused)
+## 12. Railway (signups paused)
 
 Railway paused new signups after the October 21 security incident and has not
 announced a reopening date ([status.railway.com](https://status.railway.com)).
-Existing accounts continue to work, so the previous configuration is kept as a
-fallback:
+Existing accounts continue to work, but this repo no longer ships a Railway config.
+If you need Railway as a fallback, recreate `railway.json` at the repo root:
 
-- `railway.json` at the repo root builds and starts the backend with Nixpacks.
-- The rest of this runbook applies unchanged; only the host and URLs differ:
-  `https://<service>.up.railway.app` instead of `https://<service>.onrender.com`.
-- Set the same environment variables in the Railway dashboard, point the Railway
-  service at the repo root, and use `railway logs` instead of Render logs.
-- If you switch hosts, update `VITE_API_URL` on Vercel and `FRONTEND_ORIGIN` on the
-  API, then redeploy both.
+```json
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm ci --include=dev && npm run build -w apps/backend"
+  },
+  "deploy": {
+    "startCommand": "npm start -w apps/backend",
+    "healthcheckPath": "/api/health",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
+```
+
+The rest of this runbook applies unchanged; only the host and URLs differ:
+`https://<service>.up.railway.app` instead of `https://<service>.onrender.com`.
+Set the same environment variables in the Railway dashboard, point the service at
+the repo root, and use `railway logs` instead of Render logs. If you switch hosts,
+update `VITE_API_URL` on Vercel and `FRONTEND_ORIGIN` on the API, then redeploy both.
 
 Do not run both hosts against the same Neon database at the same time unless you
 intend to serve traffic from both.

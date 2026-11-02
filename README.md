@@ -233,7 +233,7 @@ Quick outline:
 
 Render's free web service sleeps after 15 minutes idle and takes about a minute to
 wake; use a paid instance for an always-on API. Railway new signups are currently
-paused, so `railway.json` is kept as a documented fallback.
+paused, so Render is the only configured API host.
 
 **Back up** `CONNECTION_ENCRYPTION_KEY` and `CONNECTION_RECOVERY_PASSPHRASE` offline.
 Without both, stored credentials are unrecoverable if the encryption key is lost.
