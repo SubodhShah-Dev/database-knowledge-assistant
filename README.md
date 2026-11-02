@@ -4,7 +4,7 @@ Connect PostgreSQL, MySQL-compatible databases (including MariaDB and TiDB), or 
 
 ## Status
 
-Phase 1 is complete. The current implementation also includes multi-engine targets, MongoDB, administrator-managed providers, and per-session model selection. See [Current State](docs/database-knowledge-assistant/CURRENT_STATE.md) for the authoritative implementation snapshot.
+Phase 1 is complete. The current implementation also includes multi-engine targets, MongoDB, administrator-managed providers, and per-session model selection. See [Current State](docs/architecture/current-state.md) for the authoritative implementation snapshot.
 
 ## Features
 
@@ -194,7 +194,7 @@ The E2E run temporarily points the seeded default model at the local stub and re
 
 ## API overview
 
-Full request/response details, responsibilities, and client call sites live in [docs/apis/README.md](docs/apis/README.md).
+Full request/response details, responsibilities, and client call sites live in [docs/reference/api/README.md](docs/reference/api/README.md).
 
 | Method             | Path                          | Purpose                                           |
 | ------------------ | ----------------------------- | ------------------------------------------------- |
@@ -219,7 +219,7 @@ Full request/response details, responsibilities, and client call sites live in [
 
 SSE event order is `status` -> `evidence` -> `token`\* -> `done`. Errors after the stream starts arrive as `error` events; validation and provider failures before the stream return JSON.
 
-Database schemas, query locations, and the demo dataset are documented in [docs/databases/README.md](docs/databases/README.md). The original build narrative lives in the [Roadmap & Developer Guide](docs/database-knowledge-assistant/Database%20Knowledge%20Assistant%20%E2%80%94%20Roadmap%20&%20Developer%20Guide.md) and [Implementation Walkthrough](docs/database-knowledge-assistant/Implementation_Walkthrough.md).
+Database schemas, query locations, and the demo dataset are documented in [docs/reference/databases/README.md](docs/reference/databases/README.md). The original build narrative lives in the [Roadmap & Developer Guide](docs/history/roadmap-and-developer-guide.md) and [Implementation Walkthrough](docs/history/implementation-walkthrough.md).
 
 ## Project structure
 
