@@ -4,7 +4,7 @@ Operational procedures that go beyond local development.
 
 ## Pages
 
-- [Deployment](deployment.md) — deploy the SPA to Vercel, the API to Railway, and PostgreSQL to Neon.
+- [Deployment](deployment.md) — deploy the SPA to Vercel, the API to Render, and PostgreSQL to Neon.
 
 ## Related
 

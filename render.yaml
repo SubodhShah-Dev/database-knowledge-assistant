@@ -1,0 +1,43 @@
+# Render Blueprint for the Express API.
+# Deploy with: Render Dashboard -> New -> Blueprint -> connect this repo.
+# The frontend is deployed separately on Vercel; PostgreSQL lives on Neon.
+#
+# NODE_ENV=production is visible during the build, which makes plain `npm ci`
+# skip devDependencies. TypeScript and @types are devDependencies, so the build
+# command must include them explicitly.
+services:
+  - type: web
+    name: dka-api
+    runtime: node
+    plan: free
+    # Pick the region closest to your Neon project before the first deploy;
+    # Render cannot change a service's region later. Neon here is in us-east-2.
+    region: ohio
+    buildCommand: npm ci --include=dev && npm run build -w apps/backend
+    startCommand: npm start -w apps/backend
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Neon pooled connection string (host contains -pooler). Use the direct
+      # (non-pooled) URL only for schema setup and seeding, run from your machine.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CONNECTION_ENCRYPTION_KEY
+        sync: false
+      - key: CONNECTION_ENCRYPTION_KEY_VERSION
+        value: "1"
+      - key: CONNECTION_RECOVERY_PASSPHRASE
+        sync: false
+      # Exact Vercel production origin, e.g. https://your-app.vercel.app
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: openai/gpt-oss-120b

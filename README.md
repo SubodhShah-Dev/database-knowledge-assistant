@@ -217,7 +217,7 @@ apps/
 
 ## Deployment
 
-Deploy the SPA to Vercel, the API to Railway, and PostgreSQL to Neon. The full
+Deploy the SPA to Vercel, the API to Render, and PostgreSQL to Neon. The full
 runbook is in the [deployment guide](docs/guides/deployment.md); variables and
 defaults are in the [configuration reference](docs/reference/configuration.md).
 
@@ -225,10 +225,15 @@ Quick outline:
 
 1. Push to GitHub.
 2. Create a Neon PostgreSQL project and apply `apps/backend/schema.sql`.
-3. Deploy `apps/backend` to Railway with the variables from `.env.production.example`.
-   Set `DATABASE_URL` and `FRONTEND_ORIGIN`.
+3. Create a Render Blueprint from the repo; it reads `render.yaml` and deploys
+   `apps/backend`. Fill the secrets from `.env.production.example` and set
+   `DATABASE_URL` (Neon pooled URL) and `FRONTEND_ORIGIN`.
 4. Deploy `apps/frontend` to Vercel with `VITE_API_URL` pointing at the API.
 5. Set `FRONTEND_ORIGIN` to the Vercel URL and redeploy the API.
+
+Render's free web service sleeps after 15 minutes idle and takes about a minute to
+wake; use a paid instance for an always-on API. Railway new signups are currently
+paused, so `railway.json` is kept as a documented fallback.
 
 **Back up** `CONNECTION_ENCRYPTION_KEY` and `CONNECTION_RECOVERY_PASSPHRASE` offline.
 Without both, stored credentials are unrecoverable if the encryption key is lost.

@@ -38,7 +38,7 @@ connection secret and provider key unrecoverable.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `NODE_ENV` | `development` | Set to `production` for deployed environments; enables stricter startup validation. |
-| `PORT` | `4000` | API listen port. Platforms such as Railway inject this. |
+| `PORT` | `4000` | API listen port. Platforms such as Render and Railway inject this. |
 | `DATABASE_URL` | local compose URL | App PostgreSQL connection. |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS origin for the web app. |
 | `JWT_SECRET` | — | JWT signing secret. |
