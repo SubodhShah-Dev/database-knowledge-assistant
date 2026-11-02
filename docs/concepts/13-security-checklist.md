@@ -89,7 +89,12 @@ flowchart LR
 - [ ] Admin-only routes (if any) check `role`, not just authentication.
 - [ ] Logout calls `POST /api/auth/logout` which clears the cookie; server-side revocation is a documented gap.
 
-**Accepted MVP trade-off:** JWT in `localStorage` is XSS-exposed and cannot be revoked before expiry. The migration is HttpOnly cookies + CSRF protection + refresh/revocation. Until then, CSP, output escaping, and dependency hygiene matter more than usual.
+**Accepted MVP trade-off:** the API sets an HttpOnly cookie, but the web client still
+mirrors the JWT in `localStorage` and sends it as a Bearer header, so XSS can still
+exfiltrate the token. Tokens also cannot be revoked before expiry. The remaining
+migration is to stop persisting the token in the client and add CSRF protection plus
+refresh/revocation. Until then, CSP, output escaping, and dependency hygiene matter
+more than usual.
 
 ## 3. Target-database safety
 

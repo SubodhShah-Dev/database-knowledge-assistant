@@ -6,6 +6,10 @@ Connect PostgreSQL, MySQL-compatible databases (including MariaDB and TiDB), or 
 
 Phase 1 is complete. The current implementation also includes multi-engine targets, MongoDB, administrator-managed providers, and per-session model selection. See [Current State](docs/architecture/current-state.md) for the authoritative implementation snapshot.
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/README.md). Start with the [getting-started guide](docs/getting-started/README.md), check the [current state](docs/architecture/current-state.md), or look up the [API](docs/reference/api/README.md) and [database](docs/reference/databases/README.md) references.
+
 ## Features
 
 - Email/password authentication with JWT sessions stored in `HttpOnly` `SameSite=Strict` cookies (Bearer `Authorization` header also accepted).
@@ -72,69 +76,28 @@ MongoDB queries use a restricted aggregation pipeline. Write stages, cross-colle
 ```bash
 cp .env.example .env
 npm install
-
 npm run setup
 ```
 
-`npm run setup` starts the Docker databases and waits until they are healthy, applies the app database schema, seeds the demo accounts and default model, then starts the API and frontend together. Set your LLM provider credentials in `.env` before running it if you want live model responses.
+Before running, set at least `JWT_SECRET`, `CONNECTION_ENCRYPTION_KEY`,
+`CONNECTION_RECOVERY_PASSPHRASE`, and `LLM_API_KEY` in `.env`. `npm run setup`
+starts the databases, applies the schema, seeds demo data, and runs the API and
+web app together. Open `http://localhost:5173`; the API listens on
+`http://localhost:4000`.
 
-Docker services can also be managed individually with `npm run docker:up`, `npm run docker:down`, `npm run docker:ps`, and `npm run docker:logs`. Use `npm run db:setup` to reapply the app schema and seed data without restarting the application.
+Back up `CONNECTION_ENCRYPTION_KEY` and `CONNECTION_RECOVERY_PASSPHRASE` offline,
+separate from the repository. Losing both makes all stored credentials unrecoverable.
 
-For an existing deployment, rerun `apps/backend/schema.sql` against the app database to add new columns, including answer-mode history and encrypted provider-key support, before restarting the API.
-
-Open `http://localhost:5173`. The API listens on `http://localhost:4000`.
-
-The demo target database is initialized from `apps/backend/demo/target-schema.sql` the first time the `demo-postgres` volume is created.
-
-### Required environment
-
-At minimum, set these in `.env`:
-
-```bash
-JWT_SECRET=<32+ character random secret>
-CONNECTION_ENCRYPTION_KEY=<32-byte base64 or hex key>
-CONNECTION_RECOVERY_PASSPHRASE=<recovery passphrase, 12+ chars, required in production>
-LLM_API_KEY=<provider key>
-```
-
-Generate an encryption key and recovery passphrase:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-- `CONNECTION_ENCRYPTION_KEY` encrypts connection passwords, MongoDB URIs, and provider API keys. Back it up offline, separate from the app database and repository.
-- `CONNECTION_RECOVERY_PASSPHRASE` wraps a backup of the key-encrypting key stored in the `recovery_keys` table. If `CONNECTION_ENCRYPTION_KEY` is lost, supply this passphrase to recover all credentials. Back it up offline as well.
-- `CONNECTION_ENCRYPTION_KEY_VERSION` (optional, defaults to `1`) tracks the key-encrypting key version for rotation. Bump it when rotating `CONNECTION_ENCRYPTION_KEY`; existing wrapped data keys are re-wrapped under the new version without re-encrypting plaintext.
-
-See `.env.example` for every setting, including model, SQL row/timeout limits, schema cache, and connection limits.
-
-Administrators can configure OpenAI-compatible endpoints and model API keys under **AI providers** in the app. Keys are envelope-encrypted with `CONNECTION_ENCRYPTION_KEY` (wrapped per-secret data key) and are never returned to the browser.
-
-**Key rotation:** bump `CONNECTION_ENCRYPTION_KEY_VERSION` and provide the new `CONNECTION_ENCRYPTION_KEY`; all stored data-encryption keys are re-wrapped under the new version without re-encrypting the underlying secrets.
-
-**Key loss recovery:** if `CONNECTION_ENCRYPTION_KEY` is lost, configure `CONNECTION_RECOVERY_PASSPHRASE` and use `POST /api/recovery/setup` (admin) to store a wrapped backup of the key-encrypting key. Then, if the key is lost, supply the recovery passphrase to unwrap the backup and decrypt all credentials. Back up both values offline, separate from the app database and repository.
+See [Quickstart](docs/getting-started/quickstart.md),
+[Local setup](docs/getting-started/local-setup.md), and the
+[Configuration reference](docs/reference/configuration.md) for details.
 
 ## Demo data
 
-The compose stack exposes two databases:
-
-| Service         | Host port | Database                       | Role         |
-| --------------- | --------- | ------------------------------ | ------------ |
-| `app-postgres`  | `5434`    | `database_knowledge_assistant` | `app_user`   |
-| `demo-postgres` | `5435`    | `demo_analytics`               | `demo_admin` |
-
-Use this connection in the UI:
-
-```text
-Name:     Demo Analytics
-Host:     127.0.0.1
-Port:     5435
-Database: demo_analytics
-User:     demo_reader
-Password: demo_reader_password
-SSL:      disable
-```
+The compose stack includes `demo_analytics` on port `5435`. Connect with
+`demo_reader` / `demo_reader_password`. See
+[Demo data](docs/getting-started/demo-data.md) for the full connection and the
+[Database reference](docs/reference/databases/README.md) for its schema.
 
 ## Safety model
 
@@ -252,64 +215,23 @@ apps/
 - `CONNECTION_RECOVERY_PASSPHRASE` is required at startup in production. Back up both `CONNECTION_ENCRYPTION_KEY` and `CONNECTION_RECOVERY_PASSPHRASE` offline; losing `CONNECTION_ENCRYPTION_KEY` without a recovery record makes all stored credentials unrecoverable.
 - No RAG, document upload, embeddings, or usage dashboard. Provider/model administration is available under **AI providers**.
 
-## Deployment (Free Tier)
+## Deployment
 
-### Recommended Stack
+Deploy the SPA to Vercel, the API to Railway, and PostgreSQL to Neon. The full
+runbook is in the [deployment guide](docs/guides/deployment.md); variables and
+defaults are in the [configuration reference](docs/reference/configuration.md).
 
-| Component | Platform    | Free Tier                                                      |
-| --------- | ----------- | -------------------------------------------------------------- |
-| Frontend  | **Vercel**  | Unlimited personal projects, custom domains, SSL               |
-| Backend   | **Railway** | $5/month credit (covers small apps) or **Render** (750 hrs/mo) |
-| Database  | **Neon**    | 0.5 GB Postgres, branching, autoscaling                        |
-| LLM       | **Groq**    | Free tier: 14,400 req/day                                      |
+Quick outline:
 
-### Quick Deploy
+1. Push to GitHub.
+2. Create a Neon PostgreSQL project and apply `apps/backend/schema.sql`.
+3. Deploy `apps/backend` to Railway with the variables from `.env.production.example`.
+   Set `DATABASE_URL` and `FRONTEND_ORIGIN`.
+4. Deploy `apps/frontend` to Vercel with `VITE_API_URL` pointing at the API.
+5. Set `FRONTEND_ORIGIN` to the Vercel URL and redeploy the API.
 
-1. **Push to GitHub** (private repo recommended)
-
-2. **Neon Database**
-   - Create project at [neon.tech](https://neon.tech)
-   - Copy connection string (with `?sslmode=require`)
-   - Run `apps/backend/schema.sql` in Neon SQL editor
-
-3. **Railway Backend**
-   - New Project → GitHub Repo → Select `apps/backend` folder
-   - Add environment variables from `.env.production.example`
-   - Set `DATABASE_URL` to Neon connection string
-   - Set `FRONTEND_ORIGIN` to your Vercel URL (after step 4)
-   - Deploy → get backend URL (e.g., `https://your-app.railway.app`)
-
-4. **Vercel Frontend**
-   - Import GitHub repo → Select `apps/frontend` folder
-   - Add Environment Variable: `VITE_API_URL=https://your-backend.railway.app`
-   - Deploy → get frontend URL (e.g., `https://your-app.vercel.app`)
-
-5. **Update CORS**
-   - In Railway backend env vars: set `FRONTEND_ORIGIN=https://your-app.vercel.app`
-   - Redeploy backend
-
-### Environment Variables
-
-See `.env.production.example` for all required production variables. **Never commit real secrets.**
-
-Generate secrets locally:
-
-```bash
-# JWT_SECRET (32+ chars)
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# CONNECTION_ENCRYPTION_KEY (32 bytes base64)
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# CONNECTION_RECOVERY_PASSPHRASE (12+ chars, back up OFFLINE)
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-### Key Backup (Critical)
-
-- `CONNECTION_ENCRYPTION_KEY` + `CONNECTION_RECOVERY_PASSPHRASE` → **store offline** (password manager, encrypted USB)
-- Without both, **all stored credentials are unrecoverable** if the encryption key is lost
-- Use `POST /api/recovery/setup` (admin) to create a recovery record after deployment
+**Back up** `CONNECTION_ENCRYPTION_KEY` and `CONNECTION_RECOVERY_PASSPHRASE` offline.
+Without both, stored credentials are unrecoverable if the encryption key is lost.
 
 ## Troubleshooting
 

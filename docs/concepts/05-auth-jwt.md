@@ -22,7 +22,7 @@
 - JWTs are stateless: no session table, no Redis — right-sized for a small internal tool.
 - bcrypt is the baseline expectation for password storage; its cost factor makes offline cracking expensive.
 
-**The honest trade-off:** JWT-in-localStorage is vulnerable to XSS (any injected script can exfiltrate the token), and stateless revocation means a leaked token is valid until expiry (2 h here). The app now issues tokens as `HttpOnly` `SameSite=Strict` cookies (with Bearer header fallback), which mitigates XSS exfiltration but adds CSRF surface — `SameSite=Strict` and `credentials: 'include'` on cross-origin fetches are the mitigations. Production hardening adds refresh/revocation. For an internal MVP this is a documented, conscious choice. See [13 — Security checklist](13-security-checklist.md).
+**The honest trade-off:** the API issues tokens as `HttpOnly` `SameSite=Strict` cookies and accepts a Bearer header. However, the web client still mirrors the JWT in `localStorage` and sends it as a Bearer header, so XSS can still exfiltrate the token; stateless revocation is also still a gap. The cookie path adds CSRF surface, mitigated by `SameSite=Strict` and `credentials: 'include'`. Finishing the migration means removing client-side token persistence and adding CSRF protection plus refresh/revocation. For an internal MVP this is a documented, conscious choice. See [13 — Security checklist](13-security-checklist.md).
 
 ## When to use this pattern
 

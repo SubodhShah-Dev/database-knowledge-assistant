@@ -2,11 +2,32 @@
 
 This is the build diary for Phase 1, written so you can **recreate the project from scratch**. It follows the order the code should be written (one coherent branch per slice), shows the important code, explains the decisions, and links every non-trivial topic to a deep-dive note in [`concepts/`](../concepts/).
 
-## Current implementation note
+> **Status: historical — Phase 1 build diary.** This walkthrough is the original
+> Phase 1 build diary. It is useful for learning and rebuilding the project, but some
+> details are superseded. For the current component map, schema, API surface, and test
+> lifecycle, read [Current state](../architecture/current-state.md), the
+> [API reference](../reference/api/README.md), and the
+> [Database reference](../reference/databases/README.md). The branch history and early
+> code excerpts below remain useful as a rebuild guide.
 
-> This walkthrough is the original Phase 1 build diary. The repository now supports PostgreSQL, MySQL/MariaDB/TiDB, and MongoDB targets; SQL Server and SQLite are not supported. It also has an admin **AI providers** screen, per-session model selection, Auto failover, answer modes, and expanded tests.
->
-> For the current component map, schema, API surface, and test lifecycle, read [CURRENT_STATE.md](../architecture/current-state.md), [docs/apis](../reference/api/README.md), and [docs/databases](../reference/databases/README.md). The branch history and early code excerpts below remain useful as a rebuild guide.
+## Contents
+
+- [The finished system](#0-the-finished-system)
+- [Step 0 — Repository foundation](#1-step-0--repository-foundation)
+- [Step 1 — Authentication and application schema](#2-step-1--authentication-and-application-schema)
+- [Step 2 — LLM provider abstraction](#3-step-2--llm-provider-abstraction)
+- [Step 3 — Database connections and encryption](#4-step-3--database-connections-and-encryption)
+- [Step 4 — Schema introspection and relationships](#5-step-4--schema-introspection-and-relationships)
+- [Step 5 — Sessions, connections, and table scoping](#6-step-5--sessions-connections-and-table-scoping)
+- [Step 6 — Read-only SQL and the NL-to-SQL agent](#7-step-6--read-only-sql-and-the-nl-to-sql-agent)
+- [Step 7 — Frontend](#8-step-7--frontend)
+- [Step 7b — Session history and external host guard](#8a-step-7b--session-history-and-external-host-guard)
+- [Step 8 — Tests, E2E, and documentation](#9-step-8--tests-e2e-and-documentation)
+- [Addendum — Evidence shapes](#addendum--evidence-shapes)
+- [Addendum — Why no RAG](#addendum--why-no-rag)
+- [Addendum — Hardening ideas for Phase 2](#addendum--hardening-ideas-for-phase-2)
+- [Concept index](#concept-index)
+- [Rebuilding it yourself — checklist](#rebuilding-it-yourself--checklist)
 
 ## How to use this document
 

@@ -2,19 +2,40 @@
 
 > Connect a PostgreSQL database, choose the tables that matter, and ask questions in plain English. Every answer is backed by a read-only query you can inspect, with the rows, execution time, and schema/relationship context shown alongside it. No document uploads, no chunking, no embeddings — just a safe, observable database chat.
 
-## Current implementation note
+> **Status: historical — Phase 1 build plan.** This document is the original Phase 1
+> roadmap. It is useful for the plan, phases, and build schedule, but it does not
+> describe the current feature set. Current facts live in
+> [Current state](../architecture/current-state.md); the API and database are in the
+> [API reference](../reference/api/README.md) and
+> [Database reference](../reference/databases/README.md). For the build diary, see the
+> [Implementation Walkthrough](implementation-walkthrough.md).
+>
+> Treat the Phase 1 sections below as the build narrative and learning path, not as a
+> description of the current feature set.
 
-> This roadmap is the original Phase 1 plan. The repository has moved beyond it. Current implementation facts:
->
-> - Target engines are PostgreSQL, MySQL/MariaDB/TiDB, and MongoDB. SQL Server and SQLite are not supported.
-> - The app stores administrator-managed provider/model configurations in `models`, with encrypted API keys.
-> - Sessions can pin a model; Auto mode uses an ordered fallback chain.
-> - Questions support `auto`, `data`, and `schema` modes plus automatic clarification.
-> - The API and client surface are documented in [docs/apis](../reference/api/README.md).
-> - The data model and query locations are documented in [docs/databases](../reference/databases/README.md).
-> - The authoritative implementation snapshot is [CURRENT_STATE.md](../architecture/current-state.md).
->
-> Treat the Phase 1 sections below as the build narrative and learning path, not as a description of the current feature set.
+## Contents
+
+1. [Goals and constraints](#1-goals-and-constraints)
+2. [Phases at a glance](#2-phases-at-a-glance)
+3. [Build plan](#3-build-plan)
+4. [Minimal architecture](#4-minimal-architecture)
+5. [Developer setup and repository creation](#5-developer-setup-and-repository-creation)
+6. [Recommended monorepo layout](#6-recommended-monorepo-layout)
+7. [Database schema](#7-database-schema)
+8. [Docker and local services](#8-docker-and-local-services)
+9. [Backend: Express + TypeScript](#9-backend-express--typescript)
+10. [Frontend: React + TypeScript](#10-frontend-react--typescript)
+11. [Query behavior: schema vs data](#11-query-behavior-schema-vs-data)
+12. [Session lifecycle and table scoping](#12-session-lifecycle-and-table-scoping)
+13. [Security model](#13-security-model)
+14. [Testing and E2E](#14-testing-and-e2e)
+15. [Seed data and running the stack](#15-seed-data-and-running-the-stack)
+16. [Free deployment strategies](#16-free-deployment-strategies)
+17. [Phase 1 deliverables checklist](#17-phase-1-deliverables-checklist)
+18. [README template](#18-readme-template)
+19. [Estimated effort and difficulty](#19-estimated-effort-and-difficulty)
+20. [Next steps and demo talking points](#20-next-steps-and-demo-talking-points)
+21. [Further reading](#21-further-reading)
 
 ## 1. Goals and constraints
 
@@ -530,7 +551,7 @@ DB_ALLOWED_HOSTS=
 
 ### API surface
 
-> Full request/response documentation: [docs/apis](../reference/api/README.md).
+> Full request/response documentation: [API reference](../reference/api/README.md).
 
 ```text
 POST   /api/auth/signup

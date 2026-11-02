@@ -3,9 +3,6 @@
 A start-to-end runbook for running the whole app in production: the React SPA on
 Vercel, the Express API on Railway, and PostgreSQL on Neon.
 
-> This file lives in `docs/`, which is gitignored in this repo. Copy it elsewhere if
-> you want it tracked in version control.
-
 ---
 
 ## 1. What gets deployed
@@ -20,7 +17,7 @@ Vercel, the Express API on Railway, and PostgreSQL on Neon.
 ```
 Browser
   │  https://<app>.vercel.app            (static SPA, React Router)
-  │  fetch /api/* with Authorization: Bearer <jwt>
+  │  fetch /api/* with HttpOnly JWT cookie (Bearer header fallback)
   ▼
 https://<api>.up.railway.app            (Express, SSE for answers)
   │  DATABASE_URL (sslmode=require)
@@ -31,11 +28,15 @@ Neon PostgreSQL
 Notes:
 
 - The frontend and API are **separate origins**. CORS is controlled by
-  `FRONTEND_ORIGIN` on the API and `VITE_API_URL` in the frontend.
-- Authentication uses a JWT stored in `localStorage` and sent as a bearer token, so
-  cross-origin requests work without cookies.
+  `FRONTEND_ORIGIN` on the API and `VITE_API_URL` in the frontend. The API enables
+  credentialed CORS and the client sends `credentials: 'include'`.
+- Authentication sets an HttpOnly `SameSite=Strict` cookie. The web client also keeps
+  the JWT in `localStorage` and sends it as an `Authorization: Bearer` header; the API
+  accepts either. The client sends `credentials: 'include'` and CORS allows credentials.
 - Answers stream over Server-Sent Events (SSE), so keep the API connection alive
   (Railway is a better fit than free-tier hosts that sleep or impose request timeouts).
+- See the [configuration reference](../reference/configuration.md) for the complete
+  variable list, defaults, and startup validation.
 
 ---
 
@@ -142,29 +143,24 @@ Keep the connection string handy for the API environment variables.
 
 ### Environment variables
 
-| Variable                             | Required | Value / notes                                                    |
-| ------------------------------------ | -------- | ---------------------------------------------------------------- |
-| `NODE_ENV`                           | yes      | `production`                                                     |
-| `PORT`                               | auto     | Injected by Railway                                              |
-| `DATABASE_URL`                       | yes      | Neon direct URL with `?sslmode=require`                          |
-| `JWT_SECRET`                         | yes      | 32+ random chars                                                 |
-| `CONNECTION_ENCRYPTION_KEY`          | yes      | Exactly 32 bytes, base64 or hex                                  |
-| `CONNECTION_ENCRYPTION_KEY_VERSION`  | no       | Defaults to `1`; bump only when rotating the key                 |
-| `CONNECTION_RECOVERY_PASSPHRASE`     | yes\*    | 12+ chars; \*required at startup in production                   |
-| `FRONTEND_ORIGIN`                    | yes      | Exact Vercel URL, e.g. `https://<app>.vercel.app` (no trailing `/`) |
-| `LLM_BASE_URL`                       | yes      | e.g. `https://api.groq.com/openai/v1`                            |
-| `LLM_API_KEY`                        | yes      | Provider API key                                                 |
-| `LLM_MODEL`                          | yes      | e.g. `openai/gpt-oss-120b`                                       |
-| `LLM_TIMEOUT_MS`                     | no       | Defaults to `60000`                                              |
-| `SQL_MAX_ROWS`                       | no       | Defaults to `100`                                                |
-| `SQL_TIMEOUT_MS`                     | no       | Defaults to `5000`                                               |
-| `SQL_SCHEMA_CACHE_MS`                | no       | Defaults to `300000`                                             |
-| `DB_CONNECT_TIMEOUT_MS`              | no       | Defaults to `5000`                                               |
-| `MYSQL_CONNECT_TIMEOUT_MS`           | no       | Defaults to `15000`                                              |
-| `MYSQL_RECORD_COUNT_TIMEOUT_MS`      | no       | Defaults to `30000`                                              |
-| `DB_ALLOWED_HOSTS`                   | no       | Comma-separated host/IP/CIDR allowlist; empty allows any host     |
-| `MAX_CONNECTIONS_PER_USER`           | no       | Defaults to `20`                                                 |
-| `MAX_SELECTED_TABLES`                | no       | Defaults to `100`                                                |
+Set these at minimum:
+
+| Variable | Value / notes |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | Neon direct URL with `?sslmode=require` |
+| `JWT_SECRET` | 32+ random characters |
+| `CONNECTION_ENCRYPTION_KEY` | Exactly 32 bytes, base64 or hex |
+| `CONNECTION_RECOVERY_PASSPHRASE` | 12+ characters; required at startup in production |
+| `FRONTEND_ORIGIN` | Exact Vercel URL, e.g. `https://<app>.vercel.app` (no trailing `/`) |
+| `LLM_BASE_URL` | e.g. `https://api.groq.com/openai/v1` |
+| `LLM_API_KEY` | Provider API key |
+| `LLM_MODEL` | e.g. `openai/gpt-oss-120b` |
+
+Optional tuning such as `SQL_MAX_ROWS`, `SQL_TIMEOUT_MS`, `DB_ALLOWED_HOSTS`, and
+`CONNECTION_ENCRYPTION_KEY_VERSION` is documented once in the
+[configuration reference](../reference/configuration.md). `PORT` is injected by
+Railway.
 
 The API refuses to start with a missing/weak `JWT_SECRET`, a
 `CONNECTION_ENCRYPTION_KEY` that does not decode to 32 bytes, or (in production) a

@@ -90,7 +90,7 @@ Important relationships:
 
 ## 5. API surface
 
-Full details live in [docs/apis](../reference/api/README.md). Summary:
+Full details live in the [API reference](../reference/api/README.md). Summary:
 
 | Group | Endpoints |
 | --- | --- |
@@ -137,23 +137,12 @@ If the client disconnects, the upstream LLM request is aborted and the turn is n
 
 ## 8. Configuration
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | App PostgreSQL connection |
-| `JWT_SECRET` | JWT signing secret |
-| `CONNECTION_ENCRYPTION_KEY` | 32-byte key for AES-256-GCM secrets |
-| `FRONTEND_ORIGIN` | CORS origin |
-| `VITE_API_URL` | Optional browser API base; empty uses the Vite proxy |
-| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT_MS` | Default OpenAI-compatible provider |
-| `SQL_MAX_ROWS` | Result row cap (default 100, hard cap 1000) |
-| `SQL_TIMEOUT_MS` | Query timeout (default 5000, hard cap 60000) |
-| `SQL_SCHEMA_CACHE_MS` | Schema cache TTL |
-| `DB_CONNECT_TIMEOUT_MS` | Target connection timeout |
-| `MYSQL_CONNECT_TIMEOUT_MS` | MySQL-compatible connection timeout |
-| `MYSQL_RECORD_COUNT_TIMEOUT_MS` | MySQL-compatible record-count timeout |
-| `DB_ALLOWED_HOSTS` | Optional target hostname/IP/CIDR allowlist |
-| `MAX_CONNECTIONS_PER_USER` | Connection limit |
-| `MAX_SELECTED_TABLES` | Session table-scope limit |
+Configuration is environment-driven. The full list, defaults, hard caps, and
+startup validation rules live in the
+[configuration reference](../reference/configuration.md).
+
+Key safety limits: `SQL_MAX_ROWS` defaults to 100 and is capped at 1000;
+`SQL_TIMEOUT_MS` defaults to 5000 and is capped at 60000.
 
 Provider/model settings can also be stored in the `models` table through the admin **AI providers** screen. Stored API keys are encrypted; environment values remain the fallback.
 
@@ -185,7 +174,7 @@ These are not part of the current implementation:
 - CSV export, saved queries, query cancellation from the browser, or multi-hop join discovery.
 - Sharing connections between users or workspace roles.
 - Usage dashboards, audit events, or rate limiting.
-- Deployment automation, HTTPS termination, or cookie-based auth.
+- Deployment automation or HTTPS termination.
 
 ## 11. Where to read next
 

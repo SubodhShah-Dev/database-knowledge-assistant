@@ -1,8 +1,12 @@
-# Concepts Index
+# Concepts
 
-Self-contained deep dives for the current implementation and the original Phase 1 build.
+Self-contained deep dives. Each page explains what a concept is, why this project
+uses it, how it is implemented here, the pitfalls we hit, and how to verify it.
+Read them in any order; start with the group that matches what you are working on.
 
-## Original build concepts
+[Back to documentation home](../README.md)
+
+## Original build concepts (01–13)
 
 1. [Monorepo & tooling](01-monorepo-tooling.md)
 2. [TypeScript configuration](02-typescript-config.md)
@@ -18,7 +22,7 @@ Self-contained deep dives for the current implementation and the original Phase 
 12. [Testing strategy](12-testing-strategy.md)
 13. [Security checklist](13-security-checklist.md)
 
-## Current implementation concepts
+## Current implementation concepts (14–17)
 
 14. [Multi-engine adapters](14-multi-engine-adapters.md)
 15. [Provider registry and failover](15-provider-registry-and-failover.md)
@@ -30,5 +34,6 @@ Self-contained deep dives for the current implementation and the original Phase 
 - [Current state](../architecture/current-state.md)
 - [API reference](../reference/api/README.md)
 - [Database reference](../reference/databases/README.md)
-- [Roadmap & Developer Guide](../history/roadmap-and-developer-guide.md)
-- [Implementation Walkthrough](../history/implementation-walkthrough.md)
+- [Configuration](../reference/configuration.md)
+- [Historical build guide](../history/roadmap-and-developer-guide.md)
+- [Historical walkthrough](../history/implementation-walkthrough.md)
