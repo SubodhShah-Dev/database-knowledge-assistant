@@ -30,9 +30,10 @@ app.get('/api/health', async (_req, res) => {
   } catch {
     dbStatus = 'disconnected';
   }
-  res.json({
-    ok: true,
-    message: 'API is running',
+  const healthy = dbStatus === 'connected';
+  res.status(healthy ? 200 : 503).json({
+    ok: healthy,
+    message: healthy ? 'API is running' : 'API is running but the database is unreachable',
     database: dbStatus,
     timestamp: new Date().toISOString()
   });

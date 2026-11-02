@@ -5,6 +5,9 @@
     "apps/frontend",
     "apps/backend"
   ],
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "setup": "npm run docker:up && npm run db:setup && npm run dev",
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
