@@ -10,6 +10,5 @@ apps/frontend/.vite/
 *.tsbuildinfo
 .playwright-cli/
 .kilo/
-docs/
 plans/
 .aider*
